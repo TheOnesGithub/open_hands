@@ -15,6 +15,7 @@ const add_request_struct = struct {
     a: u32,
     b: u32,
 };
+
 pub fn EventType(comptime operation: Operation) type {
     return switch (operation) {
         .pulse => void,
