@@ -44,11 +44,12 @@ pub fn StateMachineType(
             ptr_as_int = ptr_as_int + header_size;
             const operation_struct: *Event = @ptrFromInt(ptr_as_int);
 
-            if (comptime Result == void) {
-                Call(operation_struct.*, output_buffer);
-            } else {
-                _ = Call(operation_struct.*, output_buffer);
-            }
+            const header_reply_size = @sizeOf(message_header.Header.Reply);
+            var reply_ptr_as_int = @intFromPtr(output_buffer);
+            reply_ptr_as_int = reply_ptr_as_int + header_reply_size;
+            const output: *Result = @ptrFromInt(reply_ptr_as_int);
+
+            _ = Call(operation_struct, output);
 
             // switch (operation) {
             //     .pulse => return self.print(

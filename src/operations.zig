@@ -1,6 +1,7 @@
 const std = @import("std");
 const constants = @import("constants.zig");
 const operations = @import("selection.zig").operations;
+const replica = @import("replica.zig");
 
 pub const Operation = enum(u8) {
     pulse = 0,
@@ -16,7 +17,7 @@ pub fn ResultType(comptime operation: Operation) type {
     return @field(operations, @tagName(operation)).result;
 }
 
-pub fn CallType(comptime operation: Operation) fn (EventType(operation), *align(16) [1024]u8) ResultType(operation) {
+pub fn CallType(comptime operation: Operation) fn (*EventType(operation), *ResultType(operation)) replica.Message_Status {
     return @field(operations, @tagName(operation)).call;
 }
 

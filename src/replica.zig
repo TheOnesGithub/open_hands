@@ -4,7 +4,7 @@ const Allocator = std.mem.Allocator;
 const global_constants = @import("constants.zig");
 const message_header = @import("message_header.zig");
 
-const Message_Status = enum {
+pub const Message_Status = enum {
     Available,
     Ready,
     Running,

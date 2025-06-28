@@ -1,20 +1,23 @@
 const std = @import("std");
+const replica = @import("replica.zig");
 
 pub const operations = struct {
     pub const pulse = struct {
         pub const event = void;
         pub const result = void;
-        pub fn call(payload: event, output: *align(16) [1024]u8) result {
+        pub fn call(payload: *event, output: *result) replica.Message_Status {
             _ = output;
             _ = payload;
+            return .Available;
         }
     };
     pub const print = struct {
         pub const event = void;
         pub const result = void;
-        pub fn call(payload: event, output: *align(16) [1024]u8) result {
+        pub fn call(payload: *event, output: *result) replica.Message_Status {
             _ = output;
             _ = payload;
+            return .Available;
         }
     };
     pub const add = struct {
@@ -23,11 +26,11 @@ pub const operations = struct {
             b: u32,
         };
         pub const result = u32;
-        pub fn call(payload: event, output: *align(16) [1024]u8) result {
-            _ = output;
+        pub fn call(payload: *event, output: *result) replica.Message_Status {
             const added = payload.a + payload.b;
             std.debug.print("ran add {} + {} = {} \r\n", .{ payload.a, payload.b, added });
-            return added;
+            output.* = added;
+            return .Available;
         }
     };
 };
