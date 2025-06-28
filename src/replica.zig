@@ -4,10 +4,11 @@ const Allocator = std.mem.Allocator;
 const global_constants = @import("constants.zig");
 const message_header = @import("message_header.zig");
 
-pub const Handled_Status = enum {
-    not_done,
-    done,
-    wait,
+pub const Handled_Status = enum(u8) {
+    done = 0,
+    not_done = 1,
+    wait = 2,
+    ignore = 3,
 };
 
 pub const Message_Status = enum {
