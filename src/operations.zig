@@ -50,3 +50,17 @@ pub const operations = struct {
         }
     };
 };
+
+comptime {
+    for (std.meta.fields(operations)) |field| {
+        const TEvent = @field(operations, field.name).event;
+        if (@alignOf(TEvent) != 16) {
+            @compileError("event " ++ field.name ++ " not aligned to 16, but to " ++ @tagName(@alignOf(TEvent)));
+        }
+
+        const TResult = @field(operations, field.name).result;
+        if (@alignOf(TResult) != 16) {
+            @compileError("result " ++ field.name ++ " not aligned to 16, but to " ++ @tagName(@alignOf(TResult)));
+        }
+    }
+}

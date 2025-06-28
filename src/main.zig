@@ -87,7 +87,6 @@ fn index(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
         const Event = Operations.EventType(.add);
         var ptr_as_int = @intFromPtr(temp);
         ptr_as_int = ptr_as_int + header_size;
-        ptr_as_int = StateMachineZig.ceilToNearest(ptr_as_int, @alignOf(Event));
         const operation_struct: *Event = @ptrFromInt(ptr_as_int);
         operation_struct.a = 1;
         operation_struct.b = 2;

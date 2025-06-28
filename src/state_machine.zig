@@ -7,10 +7,6 @@ const message_header = @import("message_header.zig");
 
 const Operations = @import("operations.zig");
 
-pub fn ceilToNearest(n: usize, x: usize) usize {
-    return ((n + x - 1) / x) * x;
-}
-
 pub fn StateMachineType(
     // comptime Storage: type,
     comptime config: global_constants.StateMachineConfig,
@@ -46,7 +42,6 @@ pub fn StateMachineType(
             const header_size = @sizeOf(message_header.Header.Request);
             var ptr_as_int = @intFromPtr(message_body_used);
             ptr_as_int = ptr_as_int + header_size;
-            ptr_as_int = ceilToNearest(ptr_as_int, @alignOf(Event));
             const operation_struct: *Event = @ptrFromInt(ptr_as_int);
 
             if (comptime Result == void) {
