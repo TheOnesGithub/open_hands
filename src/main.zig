@@ -6,7 +6,7 @@ const websocket = httpz.websocket;
 const message_header = @import("message_header.zig");
 
 const global_constants = @import("constants.zig");
-const sl = @import("selection.zig");
+const Operations = @import("operations.zig");
 
 pub const StateMachine =
     StateMachineZig.StateMachineType(global_constants.state_machine_config);
@@ -84,7 +84,7 @@ fn index(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
             .release = 0,
         };
         const header_size = @sizeOf(message_header.Header.Request);
-        const Event = sl.EventType(.add);
+        const Event = Operations.EventType(.add);
         var ptr_as_int = @intFromPtr(temp);
         ptr_as_int = ptr_as_int + header_size;
         ptr_as_int = StateMachineZig.ceilToNearest(ptr_as_int, @alignOf(Event));

@@ -6,8 +6,7 @@ const constants = @import("constants.zig");
 const stdx = @import("stdx.zig");
 // const vsr = @import("../vsr.zig");
 const Command = @import("command.zig").Command;
-const sl = @import("selection.zig");
-const Operation = sl.Operation;
+const Operation = @import("operations.zig").Operation;
 // const schema = @import("../lsm/schema.zig");
 
 pub const checksum = @import("checksum.zig").checksum;

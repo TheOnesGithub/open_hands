@@ -5,6 +5,8 @@ const sl = @import("selection.zig");
 const global_constants = @import("constants.zig");
 const message_header = @import("message_header.zig");
 
+const Operations = @import("operations.zig");
+
 pub fn ceilToNearest(n: usize, x: usize) usize {
     return ((n + x - 1) / x) * x;
 }
@@ -19,7 +21,7 @@ pub fn StateMachineType(
 
     return struct {
         const StateMachine = @This();
-        pub const Operation = sl.Operation;
+        pub const Operation = Operations.Operation;
 
         pub const constants = struct {
             pub const message_body_size_max = config.message_body_size_max;
@@ -38,9 +40,9 @@ pub fn StateMachineType(
             // comptime assert(!operation_is_multi_batch(operation));
             // comptime assert(operation_is_batchable(operation));
 
-            const Event = sl.EventType(operation);
-            const Result = sl.ResultType(operation);
-            const Call = sl.CallType(operation);
+            const Event = Operations.EventType(operation);
+            const Result = Operations.ResultType(operation);
+            const Call = Operations.CallType(operation);
             const header_size = @sizeOf(message_header.Header.Request);
             var ptr_as_int = @intFromPtr(message_body_used);
             ptr_as_int = ptr_as_int + header_size;
