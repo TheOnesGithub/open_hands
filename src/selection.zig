@@ -5,19 +5,19 @@ pub const operations = struct {
     pub const pulse = struct {
         pub const event = void;
         pub const result = void;
-        pub fn call(payload: *event, output: *result) replica.Message_Status {
+        pub fn call(payload: *event, output: *result) replica.Handled_Status {
             _ = output;
             _ = payload;
-            return .Available;
+            return .done;
         }
     };
     pub const print = struct {
         pub const event = void;
         pub const result = void;
-        pub fn call(payload: *event, output: *result) replica.Message_Status {
+        pub fn call(payload: *event, output: *result) replica.Handled_Status {
             _ = output;
             _ = payload;
-            return .Available;
+            return .done;
         }
     };
     pub const add = struct {
@@ -26,11 +26,11 @@ pub const operations = struct {
             b: u32,
         };
         pub const result = u32;
-        pub fn call(payload: *event, output: *result) replica.Message_Status {
+        pub fn call(payload: *event, output: *result) replica.Handled_Status {
             const added = payload.a + payload.b;
             std.debug.print("ran add {} + {} = {} \r\n", .{ payload.a, payload.b, added });
             output.* = added;
-            return .Available;
+            return .done;
         }
     };
 };

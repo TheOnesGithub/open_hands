@@ -17,7 +17,7 @@ pub fn ResultType(comptime operation: Operation) type {
     return @field(operations, @tagName(operation)).result;
 }
 
-pub fn CallType(comptime operation: Operation) fn (*EventType(operation), *ResultType(operation)) replica.Message_Status {
+pub fn CallType(comptime operation: Operation) fn (*EventType(operation), *ResultType(operation)) replica.Handled_Status {
     return @field(operations, @tagName(operation)).call;
 }
 

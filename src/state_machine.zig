@@ -6,6 +6,7 @@ const global_constants = @import("constants.zig");
 const message_header = @import("message_header.zig");
 
 const Operations = @import("operations.zig");
+const replica = @import("replica.zig");
 
 pub fn StateMachineType(
     // comptime Storage: type,
@@ -31,7 +32,7 @@ pub fn StateMachineType(
             // message_body_used: []align(16) const u8,
             message_body_used: *align(16) [constants.message_body_size_max]u8,
             output_buffer: *align(16) [constants.message_body_size_max]u8,
-        ) usize {
+        ) replica.Handled_Status {
             _ = self;
             // comptime assert(!operation_is_multi_batch(operation));
             // comptime assert(operation_is_batchable(operation));
@@ -49,7 +50,7 @@ pub fn StateMachineType(
             reply_ptr_as_int = reply_ptr_as_int + header_reply_size;
             const output: *Result = @ptrFromInt(reply_ptr_as_int);
 
-            _ = Call(operation_struct, output);
+            return Call(operation_struct, output);
 
             // switch (operation) {
             //     .pulse => return self.print(
@@ -63,7 +64,7 @@ pub fn StateMachineType(
             //     ),
             //     // else => comptime unreachable,
             // }
-            return 0;
+            // return 0;
         }
 
         // fn execute_create(
