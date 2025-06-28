@@ -117,11 +117,29 @@ pub fn ReplicaType(
                     const h: *message_header.Header = @ptrCast(&self.messages[idx][0]);
                     if (h.command == .request) {
                         const h_request: *message_header.Header.Request = @ptrCast(h);
-                        _ = self.state_machine.execute(
-                            h_request.operation,
-                            &self.messages[idx],
-                            &self.message_state_data[idx],
-                        );
+                        switch (h_request.operation) {
+                            .print => {
+                                _ = self.state_machine.execute(
+                                    .print,
+                                    &self.messages[idx],
+                                    &self.message_state_data[idx],
+                                );
+                            },
+                            .pulse => {
+                                _ = self.state_machine.execute(
+                                    .pulse,
+                                    &self.messages[idx],
+                                    &self.message_state_data[idx],
+                                );
+                            },
+                            .add => {
+                                _ = self.state_machine.execute(
+                                    .add,
+                                    &self.messages[idx],
+                                    &self.message_state_data[idx],
+                                );
+                            },
+                        }
                     }
                     // if (h.into_any() == .request) {
                     //     self.state_machine.execute(self.messages[idx]);

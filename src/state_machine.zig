@@ -3,6 +3,7 @@ const assert = std.debug.assert;
 const sl = @import("selection.zig");
 
 const global_constants = @import("constants.zig");
+const message_header = @import("message_header.zig");
 
 pub fn StateMachineType(
     // comptime Storage: type,
@@ -20,44 +21,45 @@ pub fn StateMachineType(
             pub const message_body_size_max = config.message_body_size_max;
         };
 
-        pub fn EventType(comptime operation: Operation) type {
-            return switch (operation) {
-                .pulse => void,
-                .print => void,
-            };
-        }
-
-        pub fn ResultType(comptime operation: Operation) type {
-            return switch (operation) {
-                .pulse => void,
-                .print => void,
-            };
-        }
-
         pub fn execute(
             self: *StateMachine,
             // timestamp: u64,
-            // comptime operation: Operation,
-            operation: Operation,
+            comptime operation: Operation,
+            // operation: Operation,
             // message_body_used: []align(16) const u8,
             message_body_used: *align(16) [constants.message_body_size_max]u8,
             output_buffer: *align(16) [constants.message_body_size_max]u8,
         ) usize {
+            _ = self;
             // comptime assert(!operation_is_multi_batch(operation));
             // comptime assert(operation_is_batchable(operation));
 
-            switch (operation) {
-                .pulse => return self.print(
-                    // timestamp,
-                    message_body_used,
-                    output_buffer,
-                ),
-                .print => return self.print(
-                    message_body_used,
-                    output_buffer,
-                ),
-                // else => comptime unreachable,
+            const Event = sl.EventType(operation);
+            const Result = sl.ResultType(operation);
+            const Call = sl.CallType(operation);
+            const header_size = @sizeOf(message_header.Header.Request);
+            var ptr_as_int = @intFromPtr(message_body_used);
+            ptr_as_int = ptr_as_int + header_size;
+            const operation_struct: *Event = @ptrFromInt(ptr_as_int);
+
+            if (comptime Result == void) {
+                Call(operation_struct.*, output_buffer);
+            } else {
+                _ = Call(operation_struct.*, output_buffer);
             }
+
+            // switch (operation) {
+            //     .pulse => return self.print(
+            //         // timestamp,
+            //         operation_struct.*,
+            //         output_buffer,
+            //     ),
+            //     .print => return self.print(
+            //         operation_struct.*,
+            //         output_buffer,
+            //     ),
+            //     // else => comptime unreachable,
+            // }
             return 0;
         }
 
@@ -82,17 +84,5 @@ pub fn StateMachineType(
         //     _ = Result;
         // }
 
-        fn print(
-            self: *StateMachine,
-            // timestamp: u64,
-            message_body_used: *align(16) [constants.message_body_size_max]u8,
-            output_buffer: *align(16) [constants.message_body_size_max]u8,
-        ) usize {
-            _ = self;
-            _ = message_body_used;
-            _ = output_buffer;
-            std.debug.print("ran print \r\n", .{});
-            return 0;
-        }
     };
 }

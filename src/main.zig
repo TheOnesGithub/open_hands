@@ -6,6 +6,7 @@ const websocket = httpz.websocket;
 const message_header = @import("message_header.zig");
 
 const global_constants = @import("constants.zig");
+const sl = @import("selection.zig");
 
 pub const StateMachine =
     StateMachineZig.StateMachineType(global_constants.state_machine_config);
@@ -78,10 +79,19 @@ fn index(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
             .request = 0,
             .command = .request,
             .client = 0,
-            .operation = .print,
+            .operation = .add,
             .cluster = 0,
             .release = 0,
         };
+        const header_size = @sizeOf(message_header.Header.Request);
+        var ptr_as_int = @intFromPtr(temp);
+        ptr_as_int = ptr_as_int + header_size;
+
+        const Event = sl.EventType(.add);
+        const operation_struct: *Event = @ptrFromInt(ptr_as_int);
+        operation_struct.a = 1;
+        operation_struct.b = 2;
+
         app.replica.message_statuses[fiber_index] = .Ready;
         try app.replica.push(fiber_index);
         std.debug.print("ran push \r\n", .{});
