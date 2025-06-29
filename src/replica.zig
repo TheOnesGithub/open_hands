@@ -11,6 +11,8 @@ const uuid = @import("uuid.zig");
 const global_constants = @import("constants.zig");
 const message_header = @import("message_header.zig");
 
+const httpz = @import("httpz");
+
 pub const Handled_Status = enum(u8) {
     done = 0,
     not_done = 1,
@@ -43,6 +45,8 @@ pub fn ReplicaType(
         state_machine: StateMachine,
 
         current_message: u32 = 1,
+        message_conn: [global_constants.message_number_max]*httpz.websocket.Conn =
+            undefined,
         messages: [global_constants.message_number_max][global_constants.message_size_max]u8 align(16) =
             undefined,
         message_ids: [global_constants.message_number_max]uuid.UUID =
@@ -114,6 +118,7 @@ pub fn ReplicaType(
             self.message_wait_on_map = AutoHashMap(uuid.UUID, Message_Request_Value).init(fixed_buffer_allocator);
 
             self.* = .{
+                .message_conn = self.message_conn,
                 .current_message = 0,
                 .message_indexs = self.message_indexs,
                 .message_state_data = self.message_state_data,
@@ -193,6 +198,10 @@ pub fn ReplicaType(
                                     } else {
                                         std.debug.print("this message could be sent from over the network?\n", .{});
 
+                                        self.message_conn[idx].writeBin(u8_slice_ptr_from_struct_ref(Result, &r)) catch {
+                                            std.debug.assert(false);
+                                        };
+
                                         // SCHEDULER_CONFIG.handle_network_reply(message_id, scheduler_ptr.get_stack_ptr(scheduler_ptr.current_fiber));
                                     }
                                 }
@@ -265,4 +274,9 @@ pub fn ReplicaType(
 
         }
     };
+}
+
+pub fn u8_slice_ptr_from_struct_ref(comptime T: type, value: *T) *[@sizeOf(T)]u8 {
+    const ptr: [*]u8 = @ptrCast(value);
+    return ptr[0..@sizeOf(T)];
 }

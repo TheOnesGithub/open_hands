@@ -1,1 +1,42 @@
-hello
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>WebSocket Example</title>
+</head>
+<body>
+  <h1>WebSocket Demo</h1>
+  <div id="status">Connecting...</div>
+  <script>
+    const socket = new WebSocket("wss://usethecli.com/ws");
+    const statusDiv = document.getElementById("status");
+    let intervalId = null;
+    let counter = 1;
+
+    socket.onopen = () => {
+      statusDiv.textContent = "WebSocket connected!";
+      intervalId = setInterval(() => {
+        const message = `Hello #${counter}`;
+        socket.send(message);
+        statusDiv.textContent = `Sent: ${message}`;
+        counter++;
+      }, 1000);
+    };
+
+    socket.onclose = () => {
+      statusDiv.textContent = "WebSocket closed.";
+      if (intervalId) clearInterval(intervalId);
+    };
+
+    socket.onerror = (error) => {
+      statusDiv.textContent = "WebSocket error.";
+      if (intervalId) clearInterval(intervalId);
+      console.error("WebSocket error:", error);
+    };
+
+    socket.onmessage = (event) => {
+      console.log("Received:", event.data);
+    };
+  </script>
+</body>
+</html>

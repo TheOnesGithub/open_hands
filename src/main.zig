@@ -67,44 +67,21 @@ pub fn start() !void {
 }
 
 fn index(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
-    // _ = app;
+    _ = app;
     _ = req;
     std.debug.print("index \r\n", .{});
-    if (app.replica.resurveAvailableFiber()) |fiber_index| {
-        const temp = &app.replica.messages[fiber_index][0];
-        std.debug.print("size: {}\r\n", .{@sizeOf(message_header.Header.Request)});
-        std.debug.print("addr: {*}\r\n", .{temp});
-        const t2: *message_header.Header.Request = @ptrCast(temp);
-        t2.* = message_header.Header.Request{
-            .request = 0,
-            .command = .request,
-            .client = 0,
-            .operation = .print,
-            .cluster = 0,
-            .release = 0,
-        };
-        // const header_size = @sizeOf(message_header.Header.Request);
-        // const Event = Operations.EventType(.print);
-        // var ptr_as_int = @intFromPtr(temp);
-        // ptr_as_int = ptr_as_int + header_size;
-        // const operation_struct: *Event = @ptrFromInt(ptr_as_int);
-        // operation_struct.a = 1;
-        // operation_struct.b = 2;
-
-        app.replica.message_statuses[fiber_index] = .Ready;
-        try app.replica.push(fiber_index);
-        std.debug.print("ran push \r\n", .{});
-    }
     res.status = 200;
     const file_content = @embedFile("index.html");
     res.body = file_content;
 }
 
 fn ws(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
-    _ = app;
     // Could do authentication or anything else before upgrading the connection
     // The context is any arbitrary data you want to pass to Client.init.
-    const ctx = Client.Context{ .user_id = 9001 };
+    const ctx = Client.Context{
+        .user_id = 9001,
+        .app = app,
+    };
 
     // The first parameter, Client, ***MUST*** be the same as Handler.WebSocketHandler
     // I'm sorry about the awkwardness of that.
@@ -119,9 +96,11 @@ fn ws(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
 const Client = struct {
     user_id: u32,
     conn: *websocket.Conn,
+    app: *App,
 
     const Context = struct {
         user_id: u32,
+        app: *App,
     };
 
     // context is any abitrary data that you want, you'll pass it to upgradeWebsocket
@@ -130,6 +109,7 @@ const Client = struct {
         return .{
             .conn = conn,
             .user_id = ctx.user_id,
+            .app = ctx.app,
         };
     }
 
@@ -141,7 +121,31 @@ const Client = struct {
 
     pub fn clientMessage(self: *Client, data: []const u8) !void {
         std.debug.print("got message from client: {any}\r\n", .{data});
+        if (self.app.replica.resurveAvailableFiber()) |fiber_index| {
+            const temp = &self.app.replica.messages[fiber_index][0];
+            std.debug.print("size: {}\r\n", .{@sizeOf(message_header.Header.Request)});
+            std.debug.print("addr: {*}\r\n", .{temp});
+            const t2: *message_header.Header.Request = @ptrCast(temp);
+            t2.* = message_header.Header.Request{
+                .request = 0,
+                .command = .request,
+                .client = 0,
+                .operation = .print,
+                .cluster = 0,
+                .release = 0,
+            };
+            // const header_size = @sizeOf(message_header.Header.Request);
+            // const Event = Operations.EventType(.print);
+            // var ptr_as_int = @intFromPtr(temp);
+            // ptr_as_int = ptr_as_int + header_size;
+            // const operation_struct: *Event = @ptrFromInt(ptr_as_int);
+            // operation_struct.a = 1;
+            // operation_struct.b = 2;
 
-        return self.conn.write("clientMessage return");
+            self.app.replica.message_conn[fiber_index] = self.conn;
+            self.app.replica.message_statuses[fiber_index] = .Ready;
+            try self.app.replica.push(fiber_index);
+            std.debug.print("ran push \r\n", .{});
+        }
     }
 };
