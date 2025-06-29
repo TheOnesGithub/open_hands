@@ -159,11 +159,13 @@ pub fn ReplicaType(
                         inline for (std.meta.fields(Operation)) |field| {
                             const op_enum_value = @field(Operation, field.name);
                             if (h_request.operation == op_enum_value) {
+                                const Result = Operations.ResultType(op_enum_value);
+                                var r: Result = undefined;
                                 hs = self.state_machine.execute(
                                     self,
                                     op_enum_value,
                                     &self.messages[idx],
-                                    &self.message_state_data[idx],
+                                    &r,
                                     &self.messages_cache[idx],
                                 );
                             }

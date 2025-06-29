@@ -31,9 +31,8 @@ pub fn StateMachineType(
             // timestamp: u64,
             comptime operation: Operation,
             // operation: Operation,
-            // message_body_used: []align(16) const u8,
             message_body_used: *align(16) [constants.message_body_size_max]u8,
-            output_buffer: *align(16) [constants.message_body_size_max]u8,
+            res: *Operations.ResultType(operation),
             message_cache: *align(16) [constants.message_body_size_max]u8,
         ) replica.Handled_Status {
             _ = self;
@@ -41,7 +40,7 @@ pub fn StateMachineType(
             // comptime assert(operation_is_batchable(operation));
 
             const Event = Operations.EventType(operation);
-            const Result = Operations.ResultType(operation);
+            // const Result = Operations.ResultType(operation);
             const Cache = Operations.CacheType(operation);
             const Call = Operations.CallType(operation);
             const header_size = @sizeOf(message_header.Header.Request);
@@ -49,50 +48,9 @@ pub fn StateMachineType(
             ptr_as_int = ptr_as_int + header_size;
             const operation_struct: *Event = @ptrFromInt(ptr_as_int);
 
-            const header_reply_size = @sizeOf(message_header.Header.Reply);
-            var reply_ptr_as_int = @intFromPtr(output_buffer);
-            reply_ptr_as_int = reply_ptr_as_int + header_reply_size;
-            const output: *Result = @ptrFromInt(reply_ptr_as_int);
-
             const cache: *Cache = @ptrCast(message_cache);
 
-            return Call(rep, operation_struct, output, cache);
-
-            // switch (operation) {
-            //     .pulse => return self.print(
-            //         // timestamp,
-            //         operation_struct.*,
-            //         output_buffer,
-            //     ),
-            //     .print => return self.print(
-            //         operation_struct.*,
-            //         output_buffer,
-            //     ),
-            //     // else => comptime unreachable,
-            // }
-            // return 0;
+            return Call(rep, operation_struct, res, cache);
         }
-
-        // fn execute_create(
-        //     self: *StateMachine,
-        //     comptime operation: Operation,
-        //     // timestamp: u64,
-        //     batch: []const u8,
-        //     output_buffer: []u8,
-        // ) usize {
-        //     comptime assert(operation == .create_accounts or
-        //         operation == .create_transfers or
-        //         operation == .deprecated_create_accounts or
-        //         operation == .deprecated_create_transfers);
-        //
-        //     const Event = EventType(operation);
-        //     const Result = ResultType(operation);
-        //     _ = self;
-        //     _ = batch;
-        //     _ = output_buffer;
-        //     _ = Event;
-        //     _ = Result;
-        // }
-
     };
 }
