@@ -156,34 +156,17 @@ pub fn ReplicaType(
                     const h: *message_header.Header = @ptrCast(&self.messages[idx][0]);
                     if (h.command == .request) {
                         const h_request: *message_header.Header.Request = @ptrCast(h);
-                        switch (h_request.operation) {
-                            .print => {
+                        inline for (std.meta.fields(Operation)) |field| {
+                            const op_enum_value = @field(Operation, field.name);
+                            if (h_request.operation == op_enum_value) {
                                 hs = self.state_machine.execute(
                                     self,
-                                    .print,
+                                    op_enum_value,
                                     &self.messages[idx],
                                     &self.message_state_data[idx],
                                     &self.messages_cache[idx],
                                 );
-                            },
-                            .pulse => {
-                                hs = self.state_machine.execute(
-                                    self,
-                                    .pulse,
-                                    &self.messages[idx],
-                                    &self.message_state_data[idx],
-                                    &self.messages_cache[idx],
-                                );
-                            },
-                            .add => {
-                                hs = self.state_machine.execute(
-                                    self,
-                                    .add,
-                                    &self.messages[idx],
-                                    &self.message_state_data[idx],
-                                    &self.messages_cache[idx],
-                                );
-                            },
+                            }
                         }
                     }
                     if (hs == .not_done) {
