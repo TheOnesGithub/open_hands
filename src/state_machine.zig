@@ -33,24 +33,24 @@ pub fn StateMachineType(
             // operation: Operation,
             message_body_used: *align(16) [constants.message_body_size_max]u8,
             res: *Operations.ResultType(operation),
-            message_cache: *align(16) [constants.message_body_size_max]u8,
+            message_state: *align(16) [constants.message_body_size_max]u8,
         ) replica.Handled_Status {
             _ = self;
             // comptime assert(!operation_is_multi_batch(operation));
             // comptime assert(operation_is_batchable(operation));
 
-            const Event = Operations.EventType(operation);
+            const Body = Operations.BodyType(operation);
             // const Result = Operations.ResultType(operation);
-            const Cache = Operations.CacheType(operation);
+            const State = Operations.StateType(operation);
             const Call = Operations.CallType(operation);
             const header_size = @sizeOf(message_header.Header.Request);
             var ptr_as_int = @intFromPtr(message_body_used);
             ptr_as_int = ptr_as_int + header_size;
-            const operation_struct: *Event = @ptrFromInt(ptr_as_int);
+            const operation_struct: *Body = @ptrFromInt(ptr_as_int);
 
-            const cache: *Cache = @ptrCast(message_cache);
+            const state: *State = @ptrCast(message_state);
 
-            return Call(rep, operation_struct, res, cache);
+            return Call(rep, operation_struct, res, state);
         }
     };
 }

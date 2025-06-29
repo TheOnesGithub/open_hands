@@ -4,18 +4,6 @@ const main = @import("main.zig");
 const StackStringZig = @import("stack_string.zig");
 
 pub const operations = struct {
-    pub const pulse = struct {
-        pub const Body = void;
-        pub const Result = void;
-        pub const State = struct {};
-        pub fn call(rep: *main.Replica, body: *Body, result: *Result, state: *State) replica.Handled_Status {
-            _ = result;
-            _ = body;
-            _ = rep;
-            _ = state;
-            return .done;
-        }
-    };
     pub const print = struct {
         pub const Body = void;
         pub const Result = StackStringZig.StackString(64);

@@ -5,13 +5,12 @@ const replica = @import("replica.zig");
 const main = @import("main.zig");
 
 pub const Operation = enum(u8) {
-    pulse = 0,
-    print = 1,
-    add = 2,
-    make_string = 3,
+    print = 0,
+    add = 1,
+    make_string = 2,
 };
 
-pub fn EventType(comptime operation: Operation) type {
+pub fn BodyType(comptime operation: Operation) type {
     return @field(operations, @tagName(operation)).Body;
 }
 
@@ -19,33 +18,33 @@ pub fn ResultType(comptime operation: Operation) type {
     return @field(operations, @tagName(operation)).Result;
 }
 
-pub fn CacheType(comptime operation: Operation) type {
+pub fn StateType(comptime operation: Operation) type {
     return @field(operations, @tagName(operation)).State;
 }
 
 pub fn CallType(comptime operation: Operation) fn (
     *main.Replica,
-    *EventType(operation),
+    *BodyType(operation),
     *ResultType(operation),
-    *CacheType(operation),
+    *StateType(operation),
 ) replica.Handled_Status {
     return @field(operations, @tagName(operation)).call;
 }
 
 comptime {
     for (std.meta.fields(operations)) |field| {
-        const TEvent = @field(operations, field.name).event;
-        if (@alignOf(TEvent) != 16) {
-            @compileError("event " ++ field.name ++ " not aligned to 16, but to " ++ @tagName(@alignOf(TEvent)));
+        const TBody = @field(operations, field.name).Body;
+        if (@alignOf(TBody) != 16) {
+            @compileError("body " ++ field.name ++ " not aligned to 16, but to " ++ @tagName(@alignOf(TBody)));
         }
 
-        const TResult = @field(operations, field.name).result;
+        const TResult = @field(operations, field.name).Result;
         if (@alignOf(TResult) != 16) {
             @compileError("result " ++ field.name ++ " not aligned to 16, but to " ++ @tagName(@alignOf(TResult)));
         }
-        const TCache = @field(operations, field.name).cache;
-        if (@alignOf(TCache) != 16) {
-            @compileError("cache " ++ field.name ++ " not aligned to 16, but to " ++ @tagName(@alignOf(TCache)));
+        const TState = @field(operations, field.name).State;
+        if (@alignOf(TState) != 16) {
+            @compileError("state " ++ field.name ++ " not aligned to 16, but to " ++ @tagName(@alignOf(TState)));
         }
     }
 }

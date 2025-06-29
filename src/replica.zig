@@ -51,9 +51,7 @@ pub fn ReplicaType(
             undefined,
         message_ids: [global_constants.message_number_max]uuid.UUID =
             undefined,
-        message_state_data: [global_constants.message_number_max][global_constants.message_size_max]u8 align(16) =
-            undefined,
-        messages_cache: [global_constants.message_number_max][global_constants.message_size_max]u8 align(16) =
+        messages_state: [global_constants.message_number_max][global_constants.message_size_max]u8 align(16) =
             undefined,
         message_statuses: [global_constants.message_number_max]Message_Status =
             [_]Message_Status{.Available} ** global_constants.message_number_max,
@@ -121,12 +119,11 @@ pub fn ReplicaType(
                 .message_conn = self.message_conn,
                 .current_message = 0,
                 .message_indexs = self.message_indexs,
-                .message_state_data = self.message_state_data,
                 .message_statuses = self.message_statuses,
                 .message_waiting_on_count = self.message_waiting_on_count,
                 .messages = self.messages,
                 .message_ids = self.message_ids,
-                .messages_cache = self.messages_cache,
+                .messages_state = self.messages_state,
                 .top = 0,
                 .state_machine = self.state_machine,
                 .message_wait_on_map = self.message_wait_on_map,
@@ -173,7 +170,7 @@ pub fn ReplicaType(
                                     op_enum_value,
                                     &self.messages[idx],
                                     &r,
-                                    &self.messages_cache[idx],
+                                    &self.messages_state[idx],
                                 );
 
                                 if (hs == .not_done) {
@@ -192,7 +189,7 @@ pub fn ReplicaType(
                                             self.message_waiting_on_count[value.waiting_index] = self.message_waiting_on_count[value.waiting_index] - 1;
                                         }
                                         std.debug.assert(value.reply_size < @sizeOf(Result) + 1);
-                                        const casted_reply: *Result = @alignCast(@ptrCast(&self.messages_cache[value.waiting_index][value.reply_offset]));
+                                        const casted_reply: *Result = @alignCast(@ptrCast(&self.messages_state[value.waiting_index][value.reply_offset]));
                                         casted_reply.* = r;
                                         self.message_statuses[self.current_message] = .Available;
                                     } else {
@@ -211,10 +208,10 @@ pub fn ReplicaType(
         pub fn call_local(
             self: *Replica,
             comptime operation: Operation,
-            event: Operations.EventType(operation),
+            body: Operations.BodyType(operation),
             reply: *Operations.ResultType(operation),
         ) uuid.UUID {
-            const reply_offset = @intFromPtr(reply) - @intFromPtr(&self.messages_cache[self.current_message][0]);
+            const reply_offset = @intFromPtr(reply) - @intFromPtr(&self.messages_state[self.current_message][0]);
             std.debug.assert(reply_offset < global_constants.message_body_size_max);
 
             const message_id = uuid.UUID.v4();
@@ -238,11 +235,11 @@ pub fn ReplicaType(
                     .release = 0,
                 };
                 const header_size = @sizeOf(message_header.Header.Request);
-                const Event = Operations.EventType(operation);
+                const Body = Operations.BodyType(operation);
                 var ptr_as_int = @intFromPtr(temp);
                 ptr_as_int = ptr_as_int + header_size;
-                const operation_struct: *Event = @ptrFromInt(ptr_as_int);
-                operation_struct.* = event;
+                const operation_struct: *Body = @ptrFromInt(ptr_as_int);
+                operation_struct.* = body;
 
                 self.message_ids[fiber_index] = message_id;
                 self.message_statuses[fiber_index] = .Ready;
