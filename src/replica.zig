@@ -192,20 +192,13 @@ pub fn ReplicaType(
                             return;
                         };
                     } else if (hs == .wait) {
-                        std.debug.print("Suspended: {}\r\n", .{idx});
                         self.message_statuses[idx] = .Suspended;
                         self.push(self.current_message) catch undefined;
                     } else if (hs == .done) {
-                        std.debug.print("done: {}\r\n", .{idx});
                         if (self.message_wait_on_map.get(self.message_ids[idx])) |value| {
-                            std.debug.print("done 2: {}\r\n", .{idx});
                             _ = self.message_wait_on_map.remove(self.message_ids[idx]); // Remove the key-value pair
                             if (value.is_fiber_waiting) {
-                                std.debug.print("done 3: {}\r\n", .{idx});
                                 self.message_waiting_on_count[value.waiting_index] = self.message_waiting_on_count[value.waiting_index] - 1;
-                                std.debug.print("done 3 target: {}\r\n", .{value.waiting_index});
-                                std.debug.print("done 3 val after: {}\r\n", .{self.message_waiting_on_count[value.waiting_index]});
-                                std.debug.print("done 3 target status : {}\r\n", .{self.message_statuses[value.waiting_index]});
                             }
                             self.message_statuses[self.current_message] = .Available;
                         } else {
