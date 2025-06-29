@@ -10,7 +10,7 @@ const Operations = @import("operations.zig");
 
 pub const StateMachine =
     StateMachineZig.StateMachineType(global_constants.state_machine_config);
-const Replica = ReplicaZig.ReplicaType(StateMachine);
+pub const Replica = ReplicaZig.ReplicaType(StateMachine);
 
 const App = struct {
     pub const WebsocketHandler = Client;
@@ -79,17 +79,17 @@ fn index(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
             .request = 0,
             .command = .request,
             .client = 0,
-            .operation = .add,
+            .operation = .print,
             .cluster = 0,
             .release = 0,
         };
-        const header_size = @sizeOf(message_header.Header.Request);
-        const Event = Operations.EventType(.add);
-        var ptr_as_int = @intFromPtr(temp);
-        ptr_as_int = ptr_as_int + header_size;
-        const operation_struct: *Event = @ptrFromInt(ptr_as_int);
-        operation_struct.a = 1;
-        operation_struct.b = 2;
+        // const header_size = @sizeOf(message_header.Header.Request);
+        // const Event = Operations.EventType(.print);
+        // var ptr_as_int = @intFromPtr(temp);
+        // ptr_as_int = ptr_as_int + header_size;
+        // const operation_struct: *Event = @ptrFromInt(ptr_as_int);
+        // operation_struct.a = 1;
+        // operation_struct.b = 2;
 
         app.replica.message_statuses[fiber_index] = .Ready;
         try app.replica.push(fiber_index);

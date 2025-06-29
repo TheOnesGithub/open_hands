@@ -1,6 +1,7 @@
 const std = @import("std");
 const assert = std.debug.assert;
 const sl = @import("selection.zig");
+const main = @import("main.zig");
 
 const global_constants = @import("constants.zig");
 const message_header = @import("message_header.zig");
@@ -26,12 +27,14 @@ pub fn StateMachineType(
 
         pub fn execute(
             self: *StateMachine,
+            rep: *main.Replica,
             // timestamp: u64,
             comptime operation: Operation,
             // operation: Operation,
             // message_body_used: []align(16) const u8,
             message_body_used: *align(16) [constants.message_body_size_max]u8,
             output_buffer: *align(16) [constants.message_body_size_max]u8,
+            message_cache: *align(16) [constants.message_body_size_max]u8,
         ) replica.Handled_Status {
             _ = self;
             // comptime assert(!operation_is_multi_batch(operation));
@@ -39,6 +42,7 @@ pub fn StateMachineType(
 
             const Event = Operations.EventType(operation);
             const Result = Operations.ResultType(operation);
+            const Cache = Operations.CacheType(operation);
             const Call = Operations.CallType(operation);
             const header_size = @sizeOf(message_header.Header.Request);
             var ptr_as_int = @intFromPtr(message_body_used);
@@ -50,7 +54,9 @@ pub fn StateMachineType(
             reply_ptr_as_int = reply_ptr_as_int + header_reply_size;
             const output: *Result = @ptrFromInt(reply_ptr_as_int);
 
-            return Call(operation_struct, output);
+            const cache: *Cache = @ptrCast(message_cache);
+
+            return Call(rep, operation_struct, output, cache);
 
             // switch (operation) {
             //     .pulse => return self.print(

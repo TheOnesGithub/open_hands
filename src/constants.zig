@@ -1,10 +1,12 @@
 const Header = @import("message_header.zig");
+const uuid = @import("uuid.zig");
 
 pub const operations_reserved: u8 = 128;
 
 pub const message_size_max = 1024;
 pub const message_body_size_max = message_size_max - @sizeOf(Header);
 pub const message_number_max = 1024;
+pub const message_wait_on_map_buffer_size = message_number_max * @sizeOf(uuid.UUID);
 
 pub const StateMachineConfig = struct {
     // release: vsr.Release,
