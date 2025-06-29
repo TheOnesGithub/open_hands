@@ -8,18 +8,19 @@ pub const Operation = enum(u8) {
     pulse = 0,
     print = 1,
     add = 2,
+    make_string = 3,
 };
 
 pub fn EventType(comptime operation: Operation) type {
-    return @field(operations, @tagName(operation)).event;
+    return @field(operations, @tagName(operation)).Body;
 }
 
 pub fn ResultType(comptime operation: Operation) type {
-    return @field(operations, @tagName(operation)).result;
+    return @field(operations, @tagName(operation)).Result;
 }
 
 pub fn CacheType(comptime operation: Operation) type {
-    return @field(operations, @tagName(operation)).cache;
+    return @field(operations, @tagName(operation)).State;
 }
 
 pub fn CallType(comptime operation: Operation) fn (

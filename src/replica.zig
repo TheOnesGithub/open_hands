@@ -196,21 +196,14 @@ pub fn ReplicaType(
                                         casted_reply.* = r;
                                         self.message_statuses[self.current_message] = .Available;
                                     } else {
-                                        std.debug.print("this message could be sent from over the network?\n", .{});
-
                                         self.message_conn[idx].writeBin(u8_slice_ptr_from_struct_ref(Result, &r)) catch {
                                             std.debug.assert(false);
                                         };
-
-                                        // SCHEDULER_CONFIG.handle_network_reply(message_id, scheduler_ptr.get_stack_ptr(scheduler_ptr.current_fiber));
                                     }
                                 }
                             }
                         }
                     }
-                    // if (h.into_any() == .request) {
-                    //     self.state_machine.execute(self.messages[idx]);
-                    // }
                 }
             }
         }
@@ -265,9 +258,6 @@ pub fn ReplicaType(
             if (self.message_wait_on_map.getPtr(message_id.*)) |value| {
                 value.is_fiber_waiting = true;
                 self.message_waiting_on_count[self.current_message] = self.message_waiting_on_count[self.current_message] + 1;
-                // self.stack.fiber_statuses[self.current_fiber] = .Suspended;
-                // self.push(self.current_message) catch undefined;
-
                 return;
             }
             return; //has already geten the value back

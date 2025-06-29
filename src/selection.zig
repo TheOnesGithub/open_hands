@@ -1,58 +1,69 @@
 const std = @import("std");
 const replica = @import("replica.zig");
 const main = @import("main.zig");
+const StackStringZig = @import("stack_string.zig");
 
 pub const operations = struct {
     pub const pulse = struct {
-        pub const event = void;
-        pub const result = void;
-        pub const cache = struct {};
-        pub fn call(rep: *main.Replica, payload: *event, output: *result, c: *cache) replica.Handled_Status {
-            _ = output;
-            _ = payload;
+        pub const Body = void;
+        pub const Result = void;
+        pub const State = struct {};
+        pub fn call(rep: *main.Replica, body: *Body, result: *Result, state: *State) replica.Handled_Status {
+            _ = result;
+            _ = body;
             _ = rep;
-            _ = c;
+            _ = state;
             return .done;
         }
     };
     pub const print = struct {
-        pub const event = void;
-        pub const result = void;
-        pub const cache = struct {
-            has_ran: bool = false,
-            add_result: u32,
+        pub const Body = void;
+        pub const Result = StackStringZig.StackString(64);
+        pub const State = struct {
+            is_waited_add: bool = false,
+            add_result: add.Result,
+            print_result: make_string.Result,
         };
-        pub fn call(rep: *main.Replica, payload: *event, output: *result, c: *cache) replica.Handled_Status {
-            _ = output;
-            _ = payload;
-            // if (c.add_result) |added| {
-            // std.debug.print("print after added {} \r\n", .{added});
-            if (c.has_ran) {
-                std.debug.print("print after added got: {}\r\n", .{c.add_result});
+        pub fn call(rep: *main.Replica, body: *Body, result: *Result, state: *State) replica.Handled_Status {
+            _ = body;
+            if (state.is_waited_add) {
+                std.debug.print("print after added got: {}\r\n", .{state.add_result});
+                result.* = state.print_result;
                 return .done;
             }
-            c.has_ran = true;
             std.debug.print("from print \r\n", .{});
-            const add_message_id = rep.call_local(.add, add.event{ .a = 2, .b = 2 }, &c.add_result);
+            const add_message_id = rep.call_local(.add, add.Body{ .a = 2, .b = 2 }, &state.add_result);
             rep.add_wait(&add_message_id);
+            const make_string_message_id = rep.call_local(.make_string, make_string.Body{}, &state.print_result);
+            rep.add_wait(&make_string_message_id);
+            state.is_waited_add = true;
             return .wait;
-            // _ = add_message_id;
-
         }
     };
     pub const add = struct {
-        pub const event = struct {
+        pub const Body = struct {
             a: u32,
             b: u32,
         };
-        pub const result = u32;
-        pub const cache = struct {};
-        pub fn call(rep: *main.Replica, payload: *event, output: *result, c: *cache) replica.Handled_Status {
+        pub const Result = u32;
+        pub const State = struct {};
+        pub fn call(rep: *main.Replica, body: *Body, result: *Result, state: *State) replica.Handled_Status {
             _ = rep;
-            _ = c;
-            const added = payload.a + payload.b;
-            std.debug.print("ran add {} + {} = {} \r\n", .{ payload.a, payload.b, added });
-            output.* = added;
+            _ = state;
+            const added = body.a + body.b;
+            result.* = added;
+            return .done;
+        }
+    };
+    pub const make_string = struct {
+        pub const Body = struct {};
+        pub const Result = StackStringZig.StackString(64);
+        pub const State = struct {};
+        pub fn call(rep: *main.Replica, body: *Body, result: *Result, state: *State) replica.Handled_Status {
+            _ = rep;
+            _ = state;
+            _ = body;
+            result.* = Result.init("made string in make string");
             return .done;
         }
     };
