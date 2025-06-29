@@ -29,6 +29,8 @@ pub const Message_Status = enum {
 pub const Message_Request_Value = struct {
     waiting_index: u32,
     is_fiber_waiting: bool,
+    reply_offset: usize,
+    reply_size: usize,
 };
 
 pub fn ReplicaType(
@@ -168,28 +170,33 @@ pub fn ReplicaType(
                                     &r,
                                     &self.messages_cache[idx],
                                 );
-                            }
-                        }
-                    }
-                    if (hs == .not_done) {
-                        self.message_statuses[idx] = .Ready;
-                        self.push(idx) catch {
-                            return;
-                        };
-                    } else if (hs == .wait) {
-                        self.message_statuses[idx] = .Suspended;
-                        self.push(self.current_message) catch undefined;
-                    } else if (hs == .done) {
-                        if (self.message_wait_on_map.get(self.message_ids[idx])) |value| {
-                            _ = self.message_wait_on_map.remove(self.message_ids[idx]); // Remove the key-value pair
-                            if (value.is_fiber_waiting) {
-                                self.message_waiting_on_count[value.waiting_index] = self.message_waiting_on_count[value.waiting_index] - 1;
-                            }
-                            self.message_statuses[self.current_message] = .Available;
-                        } else {
-                            std.debug.print("this message could be sent from over the network?\n", .{});
 
-                            // SCHEDULER_CONFIG.handle_network_reply(message_id, scheduler_ptr.get_stack_ptr(scheduler_ptr.current_fiber));
+                                if (hs == .not_done) {
+                                    self.message_statuses[idx] = .Ready;
+                                    self.push(idx) catch {
+                                        return;
+                                    };
+                                } else if (hs == .wait) {
+                                    self.message_statuses[idx] = .Suspended;
+                                    self.push(self.current_message) catch undefined;
+                                } else if (hs == .done) {
+                                    // TODO: return the value
+                                    if (self.message_wait_on_map.get(self.message_ids[idx])) |value| {
+                                        _ = self.message_wait_on_map.remove(self.message_ids[idx]); // Remove the key-value pair
+                                        if (value.is_fiber_waiting) {
+                                            self.message_waiting_on_count[value.waiting_index] = self.message_waiting_on_count[value.waiting_index] - 1;
+                                        }
+                                        std.debug.assert(value.reply_size < @sizeOf(Result) + 1);
+                                        const casted_reply: *Result = @alignCast(@ptrCast(&self.messages_cache[value.waiting_index][value.reply_offset]));
+                                        casted_reply.* = r;
+                                        self.message_statuses[self.current_message] = .Available;
+                                    } else {
+                                        std.debug.print("this message could be sent from over the network?\n", .{});
+
+                                        // SCHEDULER_CONFIG.handle_network_reply(message_id, scheduler_ptr.get_stack_ptr(scheduler_ptr.current_fiber));
+                                    }
+                                }
+                            }
                         }
                     }
                     // if (h.into_any() == .request) {
@@ -203,11 +210,17 @@ pub fn ReplicaType(
             self: *Replica,
             comptime operation: Operation,
             event: Operations.EventType(operation),
+            reply: *Operations.ResultType(operation),
         ) uuid.UUID {
+            const reply_offset = @intFromPtr(reply) - @intFromPtr(&self.messages_cache[self.current_message][0]);
+            std.debug.assert(reply_offset < global_constants.message_body_size_max);
+
             const message_id = uuid.UUID.v4();
             const message_request_value = Message_Request_Value{
                 .waiting_index = self.current_message,
                 .is_fiber_waiting = false,
+                .reply_offset = reply_offset,
+                .reply_size = @sizeOf(Operations.ResultType(operation)),
             };
             self.message_wait_on_map.put(message_id, message_request_value) catch undefined;
 
