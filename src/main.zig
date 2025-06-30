@@ -59,6 +59,7 @@ pub fn start() !void {
     };
 
     router.get("/", index, .{});
+    router.get("/wasm.wasm", wasm, .{});
     router.get("/ws", ws, .{});
 
     server.listen() catch {
@@ -73,6 +74,26 @@ fn index(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
     res.status = 200;
     const file_content = @embedFile("index.html");
     res.body = file_content;
+}
+
+fn wasm(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
+    _ = app;
+    _ = req;
+
+    std.debug.print("wasm\r\n", .{});
+    const wasm_path = "wasm.wasm";
+    const file = try std.fs.cwd().openFile(wasm_path, .{});
+    defer file.close();
+
+    const file_size = try file.getEndPos();
+    const buffer = try res.arena.alloc(u8, file_size);
+    _ = try file.readAll(buffer);
+
+    res.status = 200;
+    res.content_type = httpz.ContentType.WASM; // ✅ This sets Content-Type header properly
+    res.body = buffer;
+
+    try res.write(); // Ensure headers and body are sent
 }
 
 fn ws(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
@@ -120,27 +141,13 @@ const Client = struct {
     }
 
     pub fn clientMessage(self: *Client, data: []const u8) !void {
-        std.debug.print("got message from client: {any}\r\n", .{data});
+        // std.debug.print("got message from client: {any}\r\n", .{data});
+        // TODO: valadate data
+
         if (self.app.replica.resurveAvailableFiber()) |fiber_index| {
-            const temp = &self.app.replica.messages[fiber_index][0];
-            std.debug.print("size: {}\r\n", .{@sizeOf(message_header.Header.Request)});
-            std.debug.print("addr: {*}\r\n", .{temp});
-            const t2: *message_header.Header.Request = @ptrCast(temp);
-            t2.* = message_header.Header.Request{
-                .request = 0,
-                .command = .request,
-                .client = 0,
-                .operation = .print,
-                .cluster = 0,
-                .release = 0,
-            };
-            // const header_size = @sizeOf(message_header.Header.Request);
-            // const Event = Operations.EventType(.print);
-            // var ptr_as_int = @intFromPtr(temp);
-            // ptr_as_int = ptr_as_int + header_size;
-            // const operation_struct: *Event = @ptrFromInt(ptr_as_int);
-            // operation_struct.a = 1;
-            // operation_struct.b = 2;
+            const temp = &self.app.replica.messages[fiber_index];
+
+            @memcpy(temp, data);
 
             self.app.replica.message_conn[fiber_index] = self.conn;
             self.app.replica.message_statuses[fiber_index] = .Ready;

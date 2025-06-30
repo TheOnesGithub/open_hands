@@ -2,41 +2,192 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>WebSocket Example</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login</title>
+  <script src="https://unpkg.com/htmx.org@1.9.2"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
-<body>
-  <h1>WebSocket Demo</h1>
-  <div id="status">Connecting...</div>
-  <script>
-    const socket = new WebSocket("wss://usethecli.com/ws");
-    const statusDiv = document.getElementById("status");
-    let intervalId = null;
-    let counter = 1;
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+  <div class="bg-white shadow-md rounded-lg p-8 w-full max-w-sm">
+    <h2 class="text-2xl font-bold mb-6 text-center">Log In</h2>
+    <form id="login-form" class="space-y-4">
+      <div class="space-y-1">
+        <input 
+          type="text" 
+          name="username" 
+          placeholder="Username" 
+          required 
+          id="username" 
+          class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <span 
+          id="username-error" 
+          class="text-red-500 text-sm hidden"
+        >Please enter your username</span>
+      </div>
 
-    socket.onopen = () => {
-      statusDiv.textContent = "WebSocket connected!";
-      intervalId = setInterval(() => {
-        const message = `Hello #${counter}`;
-        socket.send(message);
-        statusDiv.textContent = `Sent: ${message}`;
-        counter++;
-      }, 1000);
+      <div class="space-y-1">
+        <input 
+          type="password" 
+          name="password" 
+          placeholder="Password" 
+          required 
+          id="password" 
+          class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <span 
+          id="password-error" 
+          class="text-red-500 text-sm hidden"
+        >Please enter your password</span>
+      </div>
+
+      <button 
+        type="submit" 
+        class="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400"
+      >
+        Log In
+      </button>
+    </form>
+  </div>
+
+<script>
+    let memory, wasm;
+
+    function getZigCString(ptr) {
+      const buffer = new Uint8Array(memory.buffer);
+      let end = ptr;
+      while (buffer[end] !== 0) end++;
+      return new TextDecoder().decode(buffer.subarray(ptr, end));
+    }
+
+    function updateTimerUI(ptr, count) {
+      console.log("updateTimerUI", { ptr, count });
+
+      const addrView = new DataView(memory.buffer, ptr, count * 4); // 4 bytes per addr in wasm32
+
+      for (let i = 0; i < count; i++) {
+        const addr = addrView.getUint32(i * 4, true); // little endian
+        console.log(`Changed address [<span class="math-inline">\{i\}\]\: 0x</span>{addr.toString(16)}`);
+      }
+
+      // Get the updated string from Zig and show in DOM
+      //const strPtr = wasm.render_timer_string();
+      //const str = getZigCString(strPtr);
+      //document.querySelectorAll('.reflect-timer').forEach(el => {
+      //  el.textContent = str;
+      //});
+    }
+
+    function send(ptr, len) {
+        console.log("send");
+        // const array = new Uint8Array(memory.buffer, ptr + 2, len - 2);
+        const array = new Uint8Array(memory.buffer, ptr, len);
+        // const array = decodeStr(ptr, len);
+        console.log("Sending array:", array);
+
+        // Send the array as a Blob to the WebSocket
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(array);
+        } else {
+            console.error("WebSocket is not connected.");
+        }
+    }
+
+
+    async function initWasm() {
+    const importObject = {
+      env: {
+        notify_timer_change: updateTimerUI,
+        send: send,
+        import_random_bytes: (bufferAddress, length) => {
+                // Get a view of the Wasm memory buffer as a Uint8Array
+                const memoryBuffer = new Uint8Array(memory.buffer);
+                const bufferView = memoryBuffer.subarray(bufferAddress, bufferAddress + length);
+
+                // Fill the buffer with cryptographically strong random values
+                crypto.getRandomValues(bufferView);
+            },
+      }
     };
 
-    socket.onclose = () => {
-      statusDiv.textContent = "WebSocket closed.";
-      if (intervalId) clearInterval(intervalId);
-    };
+    WebAssembly.instantiateStreaming(fetch('wasm.wasm'), importObject)
+      .then(({ instance }) => {
+        wasm = instance.exports;
+        memory = instance.exports.memory;
 
-    socket.onerror = (error) => {
-      statusDiv.textContent = "WebSocket error.";
-      if (intervalId) clearInterval(intervalId);
-      console.error("WebSocket error:", error);
-    };
+        wasm.init();
 
-    socket.onmessage = (event) => {
-      console.log("Received:", event.data);
-    };
+      });
+        }
+
+            document.addEventListener("DOMContentLoaded", () => {
+      initWasm();
+        });
+
+
+        const socket = new WebSocket("wss://usethecli.com/ws");
+
+        socket.onopen = () => {
+        
+
+        };
+
+        socket.addEventListener("message", (event) => {
+        if (event.data instanceof Blob) {
+        const blobData = event.data;
+        console.log("Message from server (Blob):", blobData);
+
+        // To read bytes from a Blob, you'll need a FileReader
+        const reader = new FileReader();
+
+        reader.onload = function() {
+            // The result is an ArrayBuffer, which you can then view as Uint8Array
+            const arrayBuffer = reader.result;
+            const uint8Array = new Uint8Array(arrayBuffer);
+            console.log("Bytes of Blob data:", uint8Array);
+        };
+
+        reader.readAsArrayBuffer(blobData); // Read the Blob as an ArrayBuffer
+    } else {
+        console.log("Message from server (not a Blob):", event.data);
+    }
+        });
+
+        socket.onclose = () => {
+            console.log("WebSocket closed");
+        };
+
+        socket.onerror = (err) => {
+            console.error("WebSocket error", err);
+        };
+
+                    document.addEventListener("DOMContentLoaded", () => {
+
+      const form = document.getElementById("login-form");
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+
+        const username = document.getElementById("username").value;
+        const password = document.getElementById("password").value;
+
+        const encoder = new TextEncoder();
+        const usernameBytes = encoder.encode(username);
+        const passwordBytes = encoder.encode(password);
+
+        const usernamePtr = wasm.alloc(usernameBytes.length);
+        const passwordPtr = wasm.alloc(passwordBytes.length);
+
+        new Uint8Array(memory.buffer, usernamePtr, usernameBytes.length).set(usernameBytes);
+        new Uint8Array(memory.buffer, passwordPtr, passwordBytes.length).set(passwordBytes);
+
+        wasm.login(usernamePtr, usernameBytes.length, passwordPtr, passwordBytes.length);
+
+        wasm.free(usernamePtr, usernameBytes.length);
+        wasm.free(passwordPtr, passwordBytes.length);
+      });
+
+    });
   </script>
 </body>
 </html>
+

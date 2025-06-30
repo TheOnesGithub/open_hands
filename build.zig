@@ -49,7 +49,7 @@ pub fn build(b: *std.Build) void {
 
         const rel_path = std.fs.path.join(allocator, &.{ "src", entry.path }) catch continue;
         const base_name = entry.path[0 .. entry.path.len - "wasm.zig".len];
-        const exe_name = std.fmt.allocPrint(allocator, "wasm_{s}", .{base_name}) catch continue;
+        const exe_name = std.fmt.allocPrint(allocator, "wasm{s}", .{base_name}) catch continue;
         const sanitized_name = sanitizeName(allocator, exe_name) catch continue;
 
         const wasm_exe = b.addExecutable(.{
