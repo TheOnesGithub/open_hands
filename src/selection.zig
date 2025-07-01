@@ -15,11 +15,11 @@ pub const operations = struct {
         pub fn call(rep: *main.Replica, body: *Body, result: *Result, state: *State) replica.Handled_Status {
             _ = body;
             if (state.is_waited_add) {
-                std.debug.print("print after added got: {}\r\n", .{state.add_result});
+                // std.debug.print("print after added got: {}\r\n", .{state.add_result});
                 result.* = state.print_result;
                 return .done;
             }
-            std.debug.print("from print \r\n", .{});
+            // std.debug.print("from print \r\n", .{});
             const add_message_id = rep.call_local(.add, add.Body{ .a = 2, .b = 2 }, &state.add_result);
             rep.add_wait(&add_message_id);
             const make_string_message_id = rep.call_local(.make_string, make_string.Body{}, &state.print_result);

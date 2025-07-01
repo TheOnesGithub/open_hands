@@ -16,7 +16,7 @@ const allocator = std.heap.wasm_allocator;
 const MAX_USERNAME_LENGTH = 16;
 const MAX_PASSWORD_LENGTH = 64;
 
-const replica: Replica = undefined;
+var replica: Replica = undefined;
 
 extern fn send(ptr: [*]const u8, len: usize) void;
 
@@ -26,7 +26,7 @@ fn handle_network_reply(message_id: uuid.UUID, buffer_ptr: [*]u8) void {
 }
 
 pub export fn init() void {
-    replica.init(.{});
+    replica.init(.{ .temp_return = &temp_return }) catch undefined;
 }
 
 pub export fn alloc(size: usize) ?[*]u8 {
@@ -81,6 +81,7 @@ export fn login(
             .operation = .add,
             .cluster = 0,
             .release = 0,
+            .message_id = uuid.UUID.v4(),
         };
         const header_size = @sizeOf(message_header.Header.Request);
         const Body = Operations.BodyType(.add);
@@ -91,7 +92,7 @@ export fn login(
         operation_struct.b = 2;
 
         replica.message_statuses[fiber_index] = .Ready;
-        try replica.push(fiber_index);
+        replica.push(fiber_index) catch undefined;
     }
 
     // _ = call_remote(.add, body);
@@ -127,3 +128,8 @@ const Operation = @import("operations.zig").Operation;
 //     send(temp, buffer.len);
 //     return message_id;
 // }
+
+fn temp_return(message_id: uuid.UUID, body: []const u8) void {
+    _ = message_id;
+    _ = body;
+}

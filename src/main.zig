@@ -7,10 +7,23 @@ const message_header = @import("message_header.zig");
 
 const global_constants = @import("constants.zig");
 const Operations = @import("operations.zig");
+const uuid = @import("uuid.zig");
 
 pub const StateMachine =
     StateMachineZig.StateMachineType(global_constants.state_machine_config);
 pub const Replica = ReplicaZig.ReplicaType(StateMachine);
+
+const AutoHashMap = std.AutoHashMap;
+const FixedBufferAllocator = std.heap.FixedBufferAllocator;
+
+var message_id_buffer: [global_constants.message_wait_on_map_buffer_size]u8 = undefined;
+var message_id_map: AutoHashMap(uuid.UUID, Message_Request_Value) = undefined;
+var fba: std.heap.FixedBufferAllocator = undefined;
+
+pub const Message_Request_Value = struct {
+    client_message_id: uuid.UUID,
+    conn: *httpz.websocket.Conn,
+};
 
 const App = struct {
     pub const WebsocketHandler = Client;
@@ -33,8 +46,12 @@ pub fn start() !void {
     // var replica: Replica = undefined;
     // try replica.init(.{});
 
+    fba = FixedBufferAllocator.init(&message_id_buffer);
+    const fixed_buffer_allocator = fba.allocator();
+    message_id_map = AutoHashMap(uuid.UUID, Message_Request_Value).init(fixed_buffer_allocator);
+
     var app = App{};
-    try app.replica.init(.{});
+    try app.replica.init(.{ .temp_return = &temp_return });
     _ = std.Thread.spawn(.{}, replica_start, .{&app.replica}) catch |err| {
         return err;
     };
@@ -149,10 +166,25 @@ const Client = struct {
 
             @memcpy(temp, data);
 
-            self.app.replica.message_conn[fiber_index] = self.conn;
+            // TODO: change the message id to a internal id
+            const recived_message: *message_header.Header.Request = @ptrCast(temp);
+            // save the client message id
+            message_id_map.put(recived_message.message_id, Message_Request_Value{
+                .client_message_id = recived_message.message_id,
+                .conn = self.conn,
+            }) catch undefined;
+            const internal_message_id = uuid.UUID.v4();
+            recived_message.message_id = internal_message_id;
+
             self.app.replica.message_statuses[fiber_index] = .Ready;
             try self.app.replica.push(fiber_index);
             std.debug.print("ran push \r\n", .{});
         }
     }
 };
+
+fn temp_return(message_id: uuid.UUID, body: []const u8) void {
+    message_id_map.get(message_id).?.conn.writeBin(body) catch {
+        std.debug.assert(false);
+    };
+}

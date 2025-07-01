@@ -9,6 +9,8 @@ const Command = @import("command.zig").Command;
 const Operation = @import("operations.zig").Operation;
 // const schema = @import("../lsm/schema.zig");
 
+const uuid = @import("uuid.zig");
+
 pub const checksum = @import("checksum.zig").checksum;
 const checksum_body_empty = checksum(&.{});
 
@@ -460,7 +462,8 @@ pub const Header = extern struct {
         /// A client is allowed to have at most one request inflight at a time.
         request: u32,
         operation: Operation,
-        reserved: [59]u8 = [_]u8{0} ** 59,
+        message_id: uuid.UUID,
+        reserved: [43]u8 = [_]u8{0} ** 43,
 
         fn invalid_header(self: *const @This()) ?[]const u8 {
             assert(self.command == .request);
@@ -570,7 +573,8 @@ pub const Header = extern struct {
         // operation: Operation = .reserved,
         // TODO: change op
         operation: Operation = .print,
-        reserved: [19]u8 = [_]u8{0} ** 19,
+        message_id: uuid.UUID,
+        reserved: [3]u8 = [_]u8{0} ** 3,
 
         fn invalid_header(self: *const @This()) ?[]const u8 {
             assert(self.command == .reply);

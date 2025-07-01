@@ -44,9 +44,8 @@ pub fn ReplicaType(
         const Replica = @This();
         state_machine: StateMachine,
 
+        temp_return: *const fn (uuid.UUID, []const u8) void = undefined,
         current_message: u32 = 1,
-        message_conn: [global_constants.message_number_max]*httpz.websocket.Conn =
-            undefined,
         messages: [global_constants.message_number_max][global_constants.message_size_max]u8 align(16) =
             undefined,
         message_ids: [global_constants.message_number_max]uuid.UUID =
@@ -64,7 +63,9 @@ pub fn ReplicaType(
 
         top: usize = 0,
 
-        const Options = struct {};
+        const Options = struct {
+            temp_return: *const fn (uuid.UUID, []const u8) void,
+        };
 
         pub fn push(self: *Replica, value: u32) !void {
             if (self.top < global_constants.message_number_max) {
@@ -101,7 +102,6 @@ pub fn ReplicaType(
             // allocator: Allocator,
             options: Options,
         ) !void {
-            _ = options;
             // try self.state_machine.init(
             //     // allocator,
             //     // &self.grid,
@@ -116,7 +116,7 @@ pub fn ReplicaType(
             self.message_wait_on_map = AutoHashMap(uuid.UUID, Message_Request_Value).init(fixed_buffer_allocator);
 
             self.* = .{
-                .message_conn = self.message_conn,
+                .temp_return = options.temp_return,
                 .current_message = 0,
                 .message_indexs = self.message_indexs,
                 .message_statuses = self.message_statuses,
@@ -193,9 +193,7 @@ pub fn ReplicaType(
                                         casted_reply.* = r;
                                         self.message_statuses[self.current_message] = .Available;
                                     } else {
-                                        self.message_conn[idx].writeBin(u8_slice_ptr_from_struct_ref(Result, &r)) catch {
-                                            std.debug.assert(false);
-                                        };
+                                        self.temp_return(h_request.message_id, u8_slice_ptr_from_struct_ref(Result, &r));
                                     }
                                 }
                             }
@@ -233,6 +231,7 @@ pub fn ReplicaType(
                     .operation = operation,
                     .cluster = 0,
                     .release = 0,
+                    .message_id = message_id,
                 };
                 const header_size = @sizeOf(message_header.Header.Request);
                 const Body = Operations.BodyType(operation);
