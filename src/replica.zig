@@ -3,8 +3,7 @@ const Allocator = std.mem.Allocator;
 const AutoHashMap = std.AutoHashMap;
 const FixedBufferAllocator = std.heap.FixedBufferAllocator;
 
-const Operations = @import("operations.zig");
-pub const Operation = Operations.Operation;
+// const Operations = @import("operations.zig");
 
 const uuid = @import("uuid.zig");
 
@@ -42,13 +41,12 @@ pub const Message_Request_Value = struct {
 };
 
 pub fn ReplicaType(
-    comptime StateMachine: type,
-    // comptime MessageBus: type,
-    // comptime Time: type,
+    // comptime StateMachine: type,
+    comptime StateMachineOperations: type,
 ) type {
     return struct {
         const Replica = @This();
-        state_machine: StateMachine,
+        // state_machine: StateMachine,
 
         temp_return: *const fn (uuid.UUID, []align(16) u8) void = undefined,
         current_message: u32 = 1,
@@ -131,7 +129,6 @@ pub fn ReplicaType(
                 .message_ids = self.message_ids,
                 .messages_state = self.messages_state,
                 .top = 0,
-                .state_machine = self.state_machine,
                 .message_wait_on_map = self.message_wait_on_map,
                 .message_wait_on_map_buffer = self.message_wait_on_map_buffer,
                 .fba = self.fba,
@@ -165,14 +162,14 @@ pub fn ReplicaType(
                     var hs: Handled_Status = undefined;
                     const h: *message_header.Header = @ptrCast(&self.messages[idx][0]);
                     if (h.command == .request) {
-                        const h_request: *message_header.Header.Request = @ptrCast(h);
-                        inline for (std.meta.fields(Operation)) |field| {
-                            const op_enum_value = @field(Operation, field.name);
+                        const h_request: *message_header.Header.Request(StateMachineOperations.Operation) = @ptrCast(h);
+                        inline for (std.meta.fields(StateMachineOperations.Operation)) |field| {
+                            const op_enum_value = @field(StateMachineOperations.Operation, field.name);
                             if (h_request.operation == op_enum_value) {
                                 var buffer: [global_constants.message_size_max]u8 align(16) = undefined;
                                 const temp = &buffer;
-                                const header_reply: *message_header.Header.Reply = @ptrCast(@constCast(temp));
-                                header_reply.* = message_header.Header.Reply{
+                                const header_reply: *message_header.Header.Reply(StateMachineOperations.Operation) = @ptrCast(@constCast(temp));
+                                header_reply.* = message_header.Header.Reply(StateMachineOperations.Operation){
                                     .request = 0,
                                     .command = .reply,
                                     .client = 0,
@@ -186,12 +183,11 @@ pub fn ReplicaType(
                                     .timestamp = 0,
                                     .view = 0,
                                 };
-                                const Result = Operations.ResultType(op_enum_value);
+                                const Result = StateMachineOperations.ResultType(op_enum_value);
                                 // var r: Result = undefined;
-                                const r: *Result = @ptrCast(@constCast(&temp[@sizeOf(message_header.Header.Reply)..][0]));
-                                header_reply.size = @sizeOf(Result) + @sizeOf(message_header.Header.Reply);
-                                hs = self.state_machine.execute(
-                                    self,
+                                const r: *Result = @ptrCast(@constCast(&temp[@sizeOf(message_header.Header.Reply(StateMachineOperations.Operation))..][0]));
+                                header_reply.size = @sizeOf(Result) + @sizeOf(message_header.Header.Reply(StateMachineOperations.Operation));
+                                hs = self.execute(
                                     op_enum_value,
                                     &self.messages[idx],
                                     @constCast(r),
@@ -232,9 +228,10 @@ pub fn ReplicaType(
 
         pub fn call_remote(
             self: *Replica,
-            comptime operation: Operation,
-            body: Operations.BodyType(operation),
-            reply: *Operations.ResultType(operation),
+            comptime Remote_Operations: type,
+            comptime operation: Remote_Operations.Operation,
+            body: Remote_Operations.BodyType(operation),
+            reply: *Remote_Operations.ResultType(operation),
         ) uuid.UUID {
             _ = self;
             _ = reply;
@@ -243,8 +240,8 @@ pub fn ReplicaType(
             const buffer: [global_constants.message_size_max]u8 align(16) = undefined;
             const temp = &buffer;
             // const temp = &self.messages[fiber_index][0];
-            const t2: *message_header.Header.Request = @ptrCast(@constCast(temp));
-            t2.* = message_header.Header.Request{
+            const t2: *message_header.Header.Request(Remote_Operations.Operation) = @ptrCast(@constCast(temp));
+            t2.* = message_header.Header.Request(Remote_Operations.Operation){
                 .request = 0,
                 .command = .request,
                 .client = 0,
@@ -253,8 +250,8 @@ pub fn ReplicaType(
                 .release = 0,
                 .message_id = message_id,
             };
-            const header_size = @sizeOf(message_header.Header.Request);
-            const Body = Operations.BodyType(operation);
+            const header_size = @sizeOf(message_header.Header.Request(Remote_Operations.Operation));
+            const Body = Remote_Operations.BodyType(operation);
             var ptr_as_int = @intFromPtr(temp);
             ptr_as_int = ptr_as_int + header_size;
             const operation_struct: *Body = @ptrFromInt(ptr_as_int);
@@ -267,9 +264,9 @@ pub fn ReplicaType(
 
         pub fn call_local(
             self: *Replica,
-            comptime operation: Operation,
-            body: Operations.BodyType(operation),
-            reply: *Operations.ResultType(operation),
+            comptime operation: StateMachineOperations.Operation,
+            body: StateMachineOperations.BodyType(operation),
+            reply: *StateMachineOperations.ResultType(operation),
         ) uuid.UUID {
             const reply_offset = @intFromPtr(reply) - @intFromPtr(&self.messages_state[self.current_message][0]);
             std.debug.assert(reply_offset < global_constants.message_body_size_max);
@@ -279,14 +276,14 @@ pub fn ReplicaType(
                 .waiting_index = self.current_message,
                 .is_fiber_waiting = false,
                 .reply_offset = reply_offset,
-                .reply_size = @sizeOf(Operations.ResultType(operation)),
+                .reply_size = @sizeOf(StateMachineOperations.ResultType(operation)),
             };
             self.message_wait_on_map.put(message_id, message_request_value) catch undefined;
 
             if (self.resurveAvailableFiber()) |fiber_index| {
                 const temp = &self.messages[fiber_index][0];
-                const t2: *message_header.Header.Request = @ptrCast(temp);
-                t2.* = message_header.Header.Request{
+                const t2: *message_header.Header.Request(StateMachineOperations.Operation) = @ptrCast(temp);
+                t2.* = message_header.Header.Request(StateMachineOperations.Operation){
                     .request = 0,
                     .command = .request,
                     .client = 0,
@@ -295,8 +292,8 @@ pub fn ReplicaType(
                     .release = 0,
                     .message_id = message_id,
                 };
-                const header_size = @sizeOf(message_header.Header.Request);
-                const Body = Operations.BodyType(operation);
+                const header_size = @sizeOf(message_header.Header.Request(StateMachineOperations.Operation));
+                const Body = StateMachineOperations.BodyType(operation);
                 var ptr_as_int = @intFromPtr(temp);
                 ptr_as_int = ptr_as_int + header_size;
                 const operation_struct: *Body = @ptrFromInt(ptr_as_int);
@@ -320,6 +317,31 @@ pub fn ReplicaType(
             }
             return; //has already geten the value back
 
+        }
+
+        pub fn execute(
+            self: *Replica,
+            comptime operation: StateMachineOperations.Operation,
+            message_body_used: *align(16) [global_constants.message_body_size_max]u8,
+            res: *StateMachineOperations.ResultType(operation),
+            message_state: *align(16) [global_constants.message_body_size_max]u8,
+        ) Handled_Status {
+            // _ = self;
+            // comptime assert(!operation_is_multi_batch(operation));
+            // comptime assert(operation_is_batchable(operation));
+
+            const Body = StateMachineOperations.BodyType(operation);
+            // const Result = Operations.ResultType(operation);
+            const State = StateMachineOperations.StateType(operation);
+            const Call = StateMachineOperations.CallType(operation);
+            const header_size = @sizeOf(message_header.Header.Request(StateMachineOperations));
+            var ptr_as_int = @intFromPtr(message_body_used);
+            ptr_as_int = ptr_as_int + header_size;
+            const operation_struct: *Body = @ptrFromInt(ptr_as_int);
+
+            const state: *State = @ptrCast(message_state);
+
+            return Call(self, operation_struct, res, state);
         }
     };
 }

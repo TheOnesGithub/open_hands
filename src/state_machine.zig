@@ -1,56 +1,58 @@
-const std = @import("std");
-const assert = std.debug.assert;
-const sl = @import("selection.zig");
-const main = @import("main.zig");
-
-const global_constants = @import("constants.zig");
-const message_header = @import("message_header.zig");
-
-const Operations = @import("operations.zig");
-const replica = @import("replica.zig");
-
-pub fn StateMachineType(
-    // comptime Storage: type,
-    comptime config: global_constants.StateMachineConfig,
-) type {
-    assert(config.message_body_size_max > 0);
-    // assert(config.lsm_compaction_ops > 0);
-    // assert(global_constants.vsr_operations_reserved > 0);
-
-    return struct {
-        const StateMachine = @This();
-        pub const Operation = Operations.Operation;
-
-        pub const constants = struct {
-            pub const message_body_size_max = config.message_body_size_max;
-        };
-
-        pub fn execute(
-            self: *StateMachine,
-            rep: *main.Replica,
-            // timestamp: u64,
-            comptime operation: Operation,
-            // operation: Operation,
-            message_body_used: *align(16) [constants.message_body_size_max]u8,
-            res: *Operations.ResultType(operation),
-            message_state: *align(16) [constants.message_body_size_max]u8,
-        ) replica.Handled_Status {
-            _ = self;
-            // comptime assert(!operation_is_multi_batch(operation));
-            // comptime assert(operation_is_batchable(operation));
-
-            const Body = Operations.BodyType(operation);
-            // const Result = Operations.ResultType(operation);
-            const State = Operations.StateType(operation);
-            const Call = Operations.CallType(operation);
-            const header_size = @sizeOf(message_header.Header.Request);
-            var ptr_as_int = @intFromPtr(message_body_used);
-            ptr_as_int = ptr_as_int + header_size;
-            const operation_struct: *Body = @ptrFromInt(ptr_as_int);
-
-            const state: *State = @ptrCast(message_state);
-
-            return Call(rep, operation_struct, res, state);
-        }
-    };
-}
+// const std = @import("std");
+// const assert = std.debug.assert;
+// const sl = @import("selection.zig");
+// const main = @import("main.zig");
+//
+// const global_constants = @import("constants.zig");
+// const message_header = @import("message_header.zig");
+//
+// const Operations = @import("operations.zig");
+// const replica = @import("replica.zig");
+//
+// pub fn StateMachineType(
+//     // comptime Storage: type,
+//     comptime config: global_constants.StateMachineConfig,
+//     comptime StateMachineOperations: type,
+// ) type {
+//     assert(config.message_body_size_max > 0);
+//     // assert(config.lsm_compaction_ops > 0);
+//     // assert(global_constants.vsr_operations_reserved > 0);
+//
+//     return struct {
+//         const StateMachine = @This();
+//         pub const Operation = Operations.Operation;
+//
+//         pub const constants = struct {
+//             pub const message_body_size_max = config.message_body_size_max;
+//         };
+//
+//         pub fn execute(
+//             self: *StateMachine,
+//             comptime ReplicaType: type,
+//             rep: *ReplicaType,
+//             // timestamp: u64,
+//             comptime operation: StateMachineOperations.Operation,
+//             // operation: Operation,
+//             message_body_used: *align(16) [constants.message_body_size_max]u8,
+//             res: *StateMachineOperations.ResultType(operation),
+//             message_state: *align(16) [constants.message_body_size_max]u8,
+//         ) replica.Handled_Status {
+//             _ = self;
+//             // comptime assert(!operation_is_multi_batch(operation));
+//             // comptime assert(operation_is_batchable(operation));
+//
+//             const Body = StateMachineOperations.BodyType(operation);
+//             // const Result = Operations.ResultType(operation);
+//             const State = StateMachineOperations.StateType(operation);
+//             const Call = StateMachineOperations.CallType(operation);
+//             const header_size = @sizeOf(message_header.Header.Request(StateMachineOperations));
+//             var ptr_as_int = @intFromPtr(message_body_used);
+//             ptr_as_int = ptr_as_int + header_size;
+//             const operation_struct: *Body = @ptrFromInt(ptr_as_int);
+//
+//             const state: *State = @ptrCast(message_state);
+//
+//             return Call(rep, operation_struct, res, state);
+//         }
+//     };
+// }

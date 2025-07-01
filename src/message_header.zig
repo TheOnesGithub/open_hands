@@ -6,7 +6,7 @@ const constants = @import("constants.zig");
 const stdx = @import("stdx.zig");
 // const vsr = @import("../vsr.zig");
 const Command = @import("command.zig").Command;
-const Operation = @import("operations.zig").Operation;
+// const Operation = @import("operations.zig").Operation;
 // const schema = @import("../lsm/schema.zig");
 
 const uuid = @import("uuid.zig");
@@ -410,197 +410,205 @@ pub const Header = extern struct {
         }
     };
 
-    pub const Request = extern struct {
-        pub usingnamespace HeaderFunctionsType(@This());
+    pub fn Request(
+        Operation: type,
+    ) type {
+        return extern struct {
+            pub usingnamespace HeaderFunctionsType(@This());
 
-        checksum: u128 = 0,
-        checksum_padding: u128 = 0,
-        checksum_body: u128 = 0,
-        checksum_body_padding: u128 = 0,
-        nonce_reserved: u128 = 0,
-        cluster: u128,
-        size: u32 = @sizeOf(Header),
-        epoch: u32 = 0,
-        view: u32 = 0,
-        /// The client's release version.
-        release: Release,
-        protocol: u16 = Version,
-        command: Command,
-        replica: u8 = 0, // Always 0.
-        reserved_frame: [12]u8 = [_]u8{0} ** 12,
+            checksum: u128 = 0,
+            checksum_padding: u128 = 0,
+            checksum_body: u128 = 0,
+            checksum_body_padding: u128 = 0,
+            nonce_reserved: u128 = 0,
+            cluster: u128,
+            size: u32 = @sizeOf(Header),
+            epoch: u32 = 0,
+            view: u32 = 0,
+            /// The client's release version.
+            release: Release,
+            protocol: u16 = Version,
+            command: Command,
+            replica: u8 = 0, // Always 0.
+            reserved_frame: [12]u8 = [_]u8{0} ** 12,
 
-        /// Clients hash-chain their requests to verify linearizability:
-        /// - A session's first request (operation=register) sets `parent=0`.
-        /// - A session's subsequent requests (operation≠register) set `parent` to the checksum of
-        ///   the preceding reply.
-        parent: u128 = 0,
-        parent_padding: u128 = 0,
-        /// Each client process generates a unique, random and ephemeral client ID at
-        /// initialization. The client ID identifies connections made by the client to the cluster
-        /// for the sake of routing messages back to the client.
-        ///
-        /// With the client ID in hand, the client then registers a monotonically increasing session
-        /// number (committed through the cluster) to allow the client's session to be evicted
-        /// safely from the client table if too many concurrent clients cause the client table to
-        /// overflow. The monotonically increasing session number prevents duplicate client requests
-        /// from being replayed.
-        ///
-        /// The problem of routing is therefore solved by the 128-bit client ID, and the problem of
-        /// detecting whether a session has been evicted is solved by the session number.
-        client: u128,
-        /// When operation=register, this is zero.
-        /// When operation≠register, this is the commit number of register.
-        session: u64 = 0,
-        /// Only nonzero during AOF recovery.
-        /// TODO: Use this for bulk-import to state machine?
-        timestamp: u64 = 0,
-        /// Each request is given a number by the client and later requests must have larger numbers
-        /// than earlier ones. The request number is used by the replicas to avoid running requests
-        /// more than once; it is also used by the client to discard duplicate replies to its
-        /// requests.
-        ///
-        /// A client is allowed to have at most one request inflight at a time.
-        request: u32,
-        operation: Operation,
-        message_id: uuid.UUID,
-        reserved: [43]u8 = [_]u8{0} ** 43,
+            /// Clients hash-chain their requests to verify linearizability:
+            /// - A session's first request (operation=register) sets `parent=0`.
+            /// - A session's subsequent requests (operation≠register) set `parent` to the checksum of
+            ///   the preceding reply.
+            parent: u128 = 0,
+            parent_padding: u128 = 0,
+            /// Each client process generates a unique, random and ephemeral client ID at
+            /// initialization. The client ID identifies connections made by the client to the cluster
+            /// for the sake of routing messages back to the client.
+            ///
+            /// With the client ID in hand, the client then registers a monotonically increasing session
+            /// number (committed through the cluster) to allow the client's session to be evicted
+            /// safely from the client table if too many concurrent clients cause the client table to
+            /// overflow. The monotonically increasing session number prevents duplicate client requests
+            /// from being replayed.
+            ///
+            /// The problem of routing is therefore solved by the 128-bit client ID, and the problem of
+            /// detecting whether a session has been evicted is solved by the session number.
+            client: u128,
+            /// When operation=register, this is zero.
+            /// When operation≠register, this is the commit number of register.
+            session: u64 = 0,
+            /// Only nonzero during AOF recovery.
+            /// TODO: Use this for bulk-import to state machine?
+            timestamp: u64 = 0,
+            /// Each request is given a number by the client and later requests must have larger numbers
+            /// than earlier ones. The request number is used by the replicas to avoid running requests
+            /// more than once; it is also used by the client to discard duplicate replies to its
+            /// requests.
+            ///
+            /// A client is allowed to have at most one request inflight at a time.
+            request: u32,
+            operation: Operation,
+            message_id: uuid.UUID,
+            reserved: [43]u8 = [_]u8{0} ** 43,
 
-        fn invalid_header(self: *const @This()) ?[]const u8 {
-            assert(self.command == .request);
-            if (self.release.value == 0) return "release == 0";
-            if (self.parent_padding != 0) return "parent_padding != 0";
-            if (self.timestamp != 0 and !constants.aof_recovery) return "timestamp != 0";
-            switch (self.operation) {
-                // .reserved => return "operation == .reserved",
-                // .root => return "operation == .root",
-                // .register => {
-                //     // The first request a client makes must be to register with the cluster:
-                //     if (self.replica != 0) return "register: replica != 0";
-                //     if (self.client == 0) return "register: client == 0";
-                //     if (self.parent != 0) return "register: parent != 0";
-                //     if (self.session != 0) return "register: session != 0";
-                //     if (self.request != 0) return "register: request != 0";
-                //     // Support `register` requests without the body to correctly
-                //     // reply with `client_release_too_low` for clients <= v0.15.3.
-                //     if (self.size != @sizeOf(Header) and self.size != @sizeOf(Header) + @sizeOf(RegisterRequest)) {
-                //         return "register: size != @sizeOf(Header) [+ @sizeOf(RegisterRequest)]";
-                //     }
-                // },
-                .pulse => {
-                    // These requests don't originate from a real client or session.
-                    if (self.client != 0) return "pulse: client != 0";
-                    if (self.parent != 0) return "pulse: parent != 0";
-                    if (self.session != 0) return "pulse: session != 0";
-                    if (self.request != 0) return "pulse: request != 0";
-                    if (self.size != @sizeOf(Header)) return "pulse: size != @sizeOf(Header)";
-                },
-                // .upgrade => {
-                //     // These requests don't originate from a real client or session.
-                //     if (self.client != 0) return "upgrade: client != 0";
-                //     if (self.parent != 0) return "upgrade: parent != 0";
-                //     if (self.session != 0) return "upgrade: session != 0";
-                //     if (self.request != 0) return "upgrade: request != 0";
-                //
-                //     if (self.size != @sizeOf(Header) + @sizeOf(UpgradeRequest)) {
-                //         return "upgrade: size != @sizeOf(Header) + @sizeOf(UpgradeRequest)";
-                //     }
-                // },
-                else => {
-                    // if (self.operation == .reconfigure) {
-                    //     if (self.size != @sizeOf(Header) + @sizeOf(vsr.ReconfigurationRequest)) {
-                    //         return "size != @sizeOf(Header) + @sizeOf(ReconfigurationRequest)";
+            fn invalid_header(self: *const @This()) ?[]const u8 {
+                assert(self.command == .request);
+                if (self.release.value == 0) return "release == 0";
+                if (self.parent_padding != 0) return "parent_padding != 0";
+                if (self.timestamp != 0 and !constants.aof_recovery) return "timestamp != 0";
+                switch (self.operation) {
+                    // .reserved => return "operation == .reserved",
+                    // .root => return "operation == .root",
+                    // .register => {
+                    //     // The first request a client makes must be to register with the cluster:
+                    //     if (self.replica != 0) return "register: replica != 0";
+                    //     if (self.client == 0) return "register: client == 0";
+                    //     if (self.parent != 0) return "register: parent != 0";
+                    //     if (self.session != 0) return "register: session != 0";
+                    //     if (self.request != 0) return "register: request != 0";
+                    //     // Support `register` requests without the body to correctly
+                    //     // reply with `client_release_too_low` for clients <= v0.15.3.
+                    //     if (self.size != @sizeOf(Header) and self.size != @sizeOf(Header) + @sizeOf(RegisterRequest)) {
+                    //         return "register: size != @sizeOf(Header) [+ @sizeOf(RegisterRequest)]";
                     //     }
-                    // } else if (self.operation == .noop) {
-                    //     if (self.size != @sizeOf(Header)) return "size != @sizeOf(Header)";
-                    // } else if (@intFromEnum(self.operation) < constants.vsr_operations_reserved) {
-                    //     return "operation is reserved";
-                    // }
-                    if (self.replica != 0) return "replica != 0";
-                    if (self.client == 0) return "client == 0";
-                    // Thereafter, the client must provide the session number:
-                    // These requests should set `parent` to the `checksum` of the previous reply.
-                    if (self.session == 0) return "session == 0";
-                    if (self.request == 0) return "request == 0";
-                    // The Replica is responsible for checking the `Operation` is a valid variant –
-                    // the check requires the StateMachine type.
-                },
+                    // },
+                    .pulse => {
+                        // These requests don't originate from a real client or session.
+                        if (self.client != 0) return "pulse: client != 0";
+                        if (self.parent != 0) return "pulse: parent != 0";
+                        if (self.session != 0) return "pulse: session != 0";
+                        if (self.request != 0) return "pulse: request != 0";
+                        if (self.size != @sizeOf(Header)) return "pulse: size != @sizeOf(Header)";
+                    },
+                    // .upgrade => {
+                    //     // These requests don't originate from a real client or session.
+                    //     if (self.client != 0) return "upgrade: client != 0";
+                    //     if (self.parent != 0) return "upgrade: parent != 0";
+                    //     if (self.session != 0) return "upgrade: session != 0";
+                    //     if (self.request != 0) return "upgrade: request != 0";
+                    //
+                    //     if (self.size != @sizeOf(Header) + @sizeOf(UpgradeRequest)) {
+                    //         return "upgrade: size != @sizeOf(Header) + @sizeOf(UpgradeRequest)";
+                    //     }
+                    // },
+                    else => {
+                        // if (self.operation == .reconfigure) {
+                        //     if (self.size != @sizeOf(Header) + @sizeOf(vsr.ReconfigurationRequest)) {
+                        //         return "size != @sizeOf(Header) + @sizeOf(ReconfigurationRequest)";
+                        //     }
+                        // } else if (self.operation == .noop) {
+                        //     if (self.size != @sizeOf(Header)) return "size != @sizeOf(Header)";
+                        // } else if (@intFromEnum(self.operation) < constants.vsr_operations_reserved) {
+                        //     return "operation is reserved";
+                        // }
+                        if (self.replica != 0) return "replica != 0";
+                        if (self.client == 0) return "client == 0";
+                        // Thereafter, the client must provide the session number:
+                        // These requests should set `parent` to the `checksum` of the previous reply.
+                        if (self.session == 0) return "session == 0";
+                        if (self.request == 0) return "request == 0";
+                        // The Replica is responsible for checking the `Operation` is a valid variant –
+                        // the check requires the StateMachine type.
+                    },
+                }
+                if (!stdx.zeroed(&self.reserved)) return "reserved != 0";
+                return null;
             }
-            if (!stdx.zeroed(&self.reserved)) return "reserved != 0";
-            return null;
-        }
-    };
+        };
+    }
 
-    pub const Reply = extern struct {
-        pub usingnamespace HeaderFunctionsType(@This());
+    pub fn Reply(
+        Operation: type,
+    ) type {
+        return extern struct {
+            pub usingnamespace HeaderFunctionsType(@This());
 
-        checksum: u128 = 0,
-        checksum_padding: u128 = 0,
-        checksum_body: u128 = 0,
-        checksum_body_padding: u128 = 0,
-        nonce_reserved: u128 = 0,
-        cluster: u128,
-        size: u32 = @sizeOf(Header),
-        epoch: u32 = 0,
-        view: u32,
-        /// The corresponding Request's (and Prepare's, and client's) release version.
-        /// `Reply.release` matches `Request.release` (rather than the cluster release):
-        /// - to serve as an escape hatch if state machines ever need to branch on client release.
-        /// - to emphasize that the reply's format must be compatible with the client's version –
-        ///   which is potentially behind the cluster's version when the prepare commits.
-        release: Release,
-        protocol: u16 = Version,
-        command: Command,
-        replica: u8,
-        reserved_frame: [12]u8 = [_]u8{0} ** 12,
+            checksum: u128 = 0,
+            checksum_padding: u128 = 0,
+            checksum_body: u128 = 0,
+            checksum_body_padding: u128 = 0,
+            nonce_reserved: u128 = 0,
+            cluster: u128,
+            size: u32 = @sizeOf(Header),
+            epoch: u32 = 0,
+            view: u32,
+            /// The corresponding Request's (and Prepare's, and client's) release version.
+            /// `Reply.release` matches `Request.release` (rather than the cluster release):
+            /// - to serve as an escape hatch if state machines ever need to branch on client release.
+            /// - to emphasize that the reply's format must be compatible with the client's version –
+            ///   which is potentially behind the cluster's version when the prepare commits.
+            release: Release,
+            protocol: u16 = Version,
+            command: Command,
+            replica: u8,
+            reserved_frame: [12]u8 = [_]u8{0} ** 12,
 
-        /// The checksum of the corresponding Request.
-        request_checksum: u128,
-        request_checksum_padding: u128 = 0,
-        /// The checksum to be included with the next request as parent checksum.
-        /// It's almost exactly the same as entire header's checksum, except that it is computed
-        /// with a fixed view and remains stable if reply is retransmitted in a newer view.
-        /// This allows for strong guarantees beyond request, op, and commit numbers, which
-        /// have low entropy and may otherwise collide in the event of any correctness bugs.
-        context: u128 = 0,
-        context_padding: u128 = 0,
-        client: u128,
-        op: u64,
-        commit: u64,
-        /// The corresponding `prepare`'s timestamp.
-        /// This allows the test workload to verify transfer timeouts.
-        timestamp: u64,
-        request: u32,
-        // operation: Operation = .reserved,
-        // TODO: change op
-        operation: Operation = .print,
-        message_id: uuid.UUID,
-        reserved: [3]u8 = [_]u8{0} ** 3,
+            /// The checksum of the corresponding Request.
+            request_checksum: u128,
+            request_checksum_padding: u128 = 0,
+            /// The checksum to be included with the next request as parent checksum.
+            /// It's almost exactly the same as entire header's checksum, except that it is computed
+            /// with a fixed view and remains stable if reply is retransmitted in a newer view.
+            /// This allows for strong guarantees beyond request, op, and commit numbers, which
+            /// have low entropy and may otherwise collide in the event of any correctness bugs.
+            context: u128 = 0,
+            context_padding: u128 = 0,
+            client: u128,
+            op: u64,
+            commit: u64,
+            /// The corresponding `prepare`'s timestamp.
+            /// This allows the test workload to verify transfer timeouts.
+            timestamp: u64,
+            request: u32,
+            // operation: Operation = .reserved,
+            // TODO: change op
+            operation: Operation = undefined,
+            message_id: uuid.UUID,
+            reserved: [3]u8 = [_]u8{0} ** 3,
 
-        fn invalid_header(self: *const @This()) ?[]const u8 {
-            assert(self.command == .reply);
-            if (self.release.value == 0) return "release == 0";
-            // Initialization within `client.zig` asserts that client `id` is greater than zero:
-            if (self.client == 0) return "client == 0";
-            if (self.request_checksum_padding != 0) return "request_checksum_padding != 0";
-            if (self.context_padding != 0) return "context_padding != 0";
-            if (self.op != self.commit) return "op != commit";
-            if (self.timestamp == 0) return "timestamp == 0";
-            // if (self.operation == .register) {
-            //     if (self.size != @sizeOf(Header) + @sizeOf(vsr.RegisterResult)) {
-            //         return "register: size != @sizeOf(Header) + @sizeOf(vsr.RegisterResult)";
-            //     }
-            //     // In this context, the commit number is the newly registered session number.
-            //     // The `0` commit number is reserved for cluster initialization.
-            //     if (self.commit == 0) return "commit == 0";
-            //     if (self.request != 0) return "request != 0";
-            // } else {
-            if (self.commit == 0) return "commit == 0";
-            if (self.request == 0) return "request == 0";
-            // }
-            if (!stdx.zeroed(&self.reserved)) return "reserved != 0";
-            return null;
-        }
-    };
+            fn invalid_header(self: *const @This()) ?[]const u8 {
+                assert(self.command == .reply);
+                if (self.release.value == 0) return "release == 0";
+                // Initialization within `client.zig` asserts that client `id` is greater than zero:
+                if (self.client == 0) return "client == 0";
+                if (self.request_checksum_padding != 0) return "request_checksum_padding != 0";
+                if (self.context_padding != 0) return "context_padding != 0";
+                if (self.op != self.commit) return "op != commit";
+                if (self.timestamp == 0) return "timestamp == 0";
+                // if (self.operation == .register) {
+                //     if (self.size != @sizeOf(Header) + @sizeOf(vsr.RegisterResult)) {
+                //         return "register: size != @sizeOf(Header) + @sizeOf(vsr.RegisterResult)";
+                //     }
+                //     // In this context, the commit number is the newly registered session number.
+                //     // The `0` commit number is reserved for cluster initialization.
+                //     if (self.commit == 0) return "commit == 0";
+                //     if (self.request != 0) return "request != 0";
+                // } else {
+                if (self.commit == 0) return "commit == 0";
+                if (self.request == 0) return "request == 0";
+                // }
+                if (!stdx.zeroed(&self.reserved)) return "reserved != 0";
+                return null;
+            }
+        };
+    }
 
     pub const Headers = extern struct {
         pub usingnamespace HeaderFunctionsType(@This());
@@ -690,29 +698,29 @@ pub const Header = extern struct {
 };
 
 // Verify each Command's header type.
-comptime {
-    @setEvalBranchQuota(20_000);
-
-    for (std.enums.values(Command)) |command| {
-        const CommandHeader = Header.Type(command);
-        assert(@sizeOf(CommandHeader) == @sizeOf(Header));
-        assert(@alignOf(CommandHeader) == @alignOf(Header));
-        assert(@typeInfo(CommandHeader) == .@"struct");
-        assert(@typeInfo(CommandHeader).@"struct".layout == .@"extern");
-        assert(stdx.no_padding(CommandHeader));
-
-        // Verify that the command's header's frame is identical to Header's.
-        for (std.meta.fields(Header)) |header_field| {
-            if (std.mem.eql(u8, header_field.name, "reserved_command")) {
-                assert(std.meta.fieldIndex(CommandHeader, header_field.name) == null);
-            } else {
-                const command_field_index = std.meta.fieldIndex(CommandHeader, header_field.name).?;
-                const command_field = std.meta.fields(CommandHeader)[command_field_index];
-                assert(command_field.type == header_field.type);
-                assert(command_field.alignment == header_field.alignment);
-                assert(@offsetOf(CommandHeader, command_field.name) ==
-                    @offsetOf(Header, header_field.name));
-            }
-        }
-    }
-}
+// comptime {
+//     @setEvalBranchQuota(20_000);
+//
+//     for (std.enums.values(Command)) |command| {
+//         const CommandHeader = Header.Type(command);
+//         assert(@sizeOf(CommandHeader) == @sizeOf(Header));
+//         assert(@alignOf(CommandHeader) == @alignOf(Header));
+//         assert(@typeInfo(CommandHeader) == .@"struct");
+//         assert(@typeInfo(CommandHeader).@"struct".layout == .@"extern");
+//         assert(stdx.no_padding(CommandHeader));
+//
+//         // Verify that the command's header's frame is identical to Header's.
+//         for (std.meta.fields(Header)) |header_field| {
+//             if (std.mem.eql(u8, header_field.name, "reserved_command")) {
+//                 assert(std.meta.fieldIndex(CommandHeader, header_field.name) == null);
+//             } else {
+//                 const command_field_index = std.meta.fieldIndex(CommandHeader, header_field.name).?;
+//                 const command_field = std.meta.fields(CommandHeader)[command_field_index];
+//                 assert(command_field.type == header_field.type);
+//                 assert(command_field.alignment == header_field.alignment);
+//                 assert(@offsetOf(CommandHeader, command_field.name) ==
+//                     @offsetOf(Header, header_field.name));
+//             }
+//         }
+//     }
+// }
