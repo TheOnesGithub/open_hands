@@ -117,6 +117,12 @@
 
         wasm.init();
 
+        setInterval(() => {
+            if (wasm) {
+                wasm.tick();
+            }
+        }, 1000);
+
       });
         }
 
