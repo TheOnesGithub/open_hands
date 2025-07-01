@@ -44,7 +44,7 @@ pub fn ReplicaType(
         const Replica = @This();
         state_machine: StateMachine,
 
-        temp_return: *const fn (uuid.UUID, []const u8) void = undefined,
+        temp_return: *const fn (uuid.UUID, []align(16) u8) void = undefined,
         current_message: u32 = 1,
         messages: [global_constants.message_number_max][global_constants.message_size_max]u8 align(16) =
             undefined,
@@ -64,7 +64,7 @@ pub fn ReplicaType(
         top: usize = 0,
 
         const Options = struct {
-            temp_return: *const fn (uuid.UUID, []const u8) void,
+            temp_return: *const fn (uuid.UUID, []align(16) u8) void,
         };
 
         pub fn push(self: *Replica, value: u32) !void {
@@ -163,13 +163,32 @@ pub fn ReplicaType(
                         inline for (std.meta.fields(Operation)) |field| {
                             const op_enum_value = @field(Operation, field.name);
                             if (h_request.operation == op_enum_value) {
+                                var buffer: [global_constants.message_size_max]u8 align(16) = undefined;
+                                const temp = &buffer;
+                                const header_reply: *message_header.Header.Reply = @ptrCast(@constCast(temp));
+                                header_reply.* = message_header.Header.Reply{
+                                    .request = 0,
+                                    .command = .reply,
+                                    .client = 0,
+                                    .cluster = 0,
+                                    .release = 0,
+                                    .message_id = h_request.message_id,
+                                    .replica = 0,
+                                    .request_checksum = 0,
+                                    .op = 0,
+                                    .commit = 0,
+                                    .timestamp = 0,
+                                    .view = 0,
+                                };
                                 const Result = Operations.ResultType(op_enum_value);
-                                var r: Result = undefined;
+                                // var r: Result = undefined;
+                                const r: *Result = @ptrCast(@constCast(&temp[@sizeOf(message_header.Header.Reply)..][0]));
+                                header_reply.size = @sizeOf(Result) + @sizeOf(message_header.Header.Reply);
                                 hs = self.state_machine.execute(
                                     self,
                                     op_enum_value,
                                     &self.messages[idx],
-                                    &r,
+                                    @constCast(r),
                                     &self.messages_state[idx],
                                 );
 
@@ -190,10 +209,12 @@ pub fn ReplicaType(
                                         }
                                         std.debug.assert(value.reply_size < @sizeOf(Result) + 1);
                                         const casted_reply: *Result = @alignCast(@ptrCast(&self.messages_state[value.waiting_index][value.reply_offset]));
-                                        casted_reply.* = r;
+                                        casted_reply.* = r.*;
                                         self.message_statuses[self.current_message] = .Available;
                                     } else {
-                                        self.temp_return(h_request.message_id, u8_slice_ptr_from_struct_ref(Result, &r));
+                                        self.temp_return(h_request.message_id, buffer[0..header_reply.size]);
+                                        // const ptr: [*]const u8 = @ptrCast(&buffer[0]);
+                                        // self.temp_return(h_request.message_id, ptr[0..header_reply.size]);
                                     }
                                 }
                             }

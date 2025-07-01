@@ -67,69 +67,70 @@ export fn login(
     _ = username;
     _ = password;
 
-    // const Body = Operations.BodyType(.add);
-    // const body: Body = .{ .a = 1, .b = 4 };
+    const Body = Operations.BodyType(.add);
+    const body: Body = .{ .a = 1, .b = 4 };
     // replica.call_local(.add, body, reply: *Operations.ResultType(operation))
 
-    if (replica.resurveAvailableFiber()) |fiber_index| {
-        const temp = &replica.messages[fiber_index][0];
-        const t2: *message_header.Header.Request = @ptrCast(temp);
-        t2.* = message_header.Header.Request{
-            .request = 0,
-            .command = .request,
-            .client = 0,
-            .operation = .add,
-            .cluster = 0,
-            .release = 0,
-            .message_id = uuid.UUID.v4(),
-        };
-        const header_size = @sizeOf(message_header.Header.Request);
-        const Body = Operations.BodyType(.add);
-        var ptr_as_int = @intFromPtr(temp);
-        ptr_as_int = ptr_as_int + header_size;
-        const operation_struct: *Body = @ptrFromInt(ptr_as_int);
-        operation_struct.a = 1;
-        operation_struct.b = 2;
+    // if (replica.resurveAvailableFiber()) |fiber_index| {
+    //     const temp = &replica.messages[fiber_index][0];
+    //     const t2: *message_header.Header.Request = @ptrCast(temp);
+    //     t2.* = message_header.Header.Request{
+    //         .request = 0,
+    //         .command = .request,
+    //         .client = 0,
+    //         .operation = .add,
+    //         .cluster = 0,
+    //         .release = 0,
+    //         .message_id = uuid.UUID.v4(),
+    //     };
+    //     const header_size = @sizeOf(message_header.Header.Request);
+    //     const Body = Operations.BodyType(.add);
+    //     var ptr_as_int = @intFromPtr(temp);
+    //     ptr_as_int = ptr_as_int + header_size;
+    //     const operation_struct: *Body = @ptrFromInt(ptr_as_int);
+    //     operation_struct.a = 3;
+    //     operation_struct.b = 2;
+    //
+    //     replica.message_statuses[fiber_index] = .Ready;
+    //     replica.push(fiber_index) catch undefined;
+    // }
 
-        replica.message_statuses[fiber_index] = .Ready;
-        replica.push(fiber_index) catch undefined;
-    }
-
-    // _ = call_remote(.add, body);
+    _ = call_remote(.add, body);
 }
 
 const Operation = @import("operations.zig").Operation;
 
-// pub fn call_remote(
-//     comptime operation: Operation,
-//     body: Operations.BodyType(operation),
-// ) uuid.UUID {
-//     const message_id = uuid.UUID.v4();
-//
-//     const buffer: [global_constants.message_size_max]u8 align(16) = undefined;
-//     const temp = &buffer;
-//     // const temp = &self.messages[fiber_index][0];
-//     const t2: *message_header.Header.Request = @ptrCast(@constCast(temp));
-//     t2.* = message_header.Header.Request{
-//         .request = 0,
-//         .command = .request,
-//         .client = 0,
-//         .operation = operation,
-//         .cluster = 0,
-//         .release = 0,
-//     };
-//     const header_size = @sizeOf(message_header.Header.Request);
-//     const Body = Operations.BodyType(operation);
-//     var ptr_as_int = @intFromPtr(temp);
-//     ptr_as_int = ptr_as_int + header_size;
-//     const operation_struct: *Body = @ptrFromInt(ptr_as_int);
-//     operation_struct.* = body;
-//
-//     send(temp, buffer.len);
-//     return message_id;
-// }
+pub fn call_remote(
+    comptime operation: Operation,
+    body: Operations.BodyType(operation),
+) uuid.UUID {
+    const message_id = uuid.UUID.v4();
 
-fn temp_return(message_id: uuid.UUID, body: []const u8) void {
+    const buffer: [global_constants.message_size_max]u8 align(16) = undefined;
+    const temp = &buffer;
+    // const temp = &self.messages[fiber_index][0];
+    const t2: *message_header.Header.Request = @ptrCast(@constCast(temp));
+    t2.* = message_header.Header.Request{
+        .request = 0,
+        .command = .request,
+        .client = 0,
+        .operation = operation,
+        .cluster = 0,
+        .release = 0,
+        .message_id = message_id,
+    };
+    const header_size = @sizeOf(message_header.Header.Request);
+    const Body = Operations.BodyType(operation);
+    var ptr_as_int = @intFromPtr(temp);
+    ptr_as_int = ptr_as_int + header_size;
+    const operation_struct: *Body = @ptrFromInt(ptr_as_int);
+    operation_struct.* = body;
+
+    send(temp, buffer.len);
+    return message_id;
+}
+
+fn temp_return(message_id: uuid.UUID, message: []align(16) u8) void {
     _ = message_id;
-    _ = body;
+    send(message.ptr, message.len);
 }

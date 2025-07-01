@@ -23,6 +23,7 @@ var fba: std.heap.FixedBufferAllocator = undefined;
 pub const Message_Request_Value = struct {
     client_message_id: uuid.UUID,
     conn: *httpz.websocket.Conn,
+    only_return_body: bool,
 };
 
 const App = struct {
@@ -169,11 +170,12 @@ const Client = struct {
             // TODO: change the message id to a internal id
             const recived_message: *message_header.Header.Request = @ptrCast(temp);
             // save the client message id
-            message_id_map.put(recived_message.message_id, Message_Request_Value{
+            const internal_message_id = uuid.UUID.v4();
+            message_id_map.put(internal_message_id, Message_Request_Value{
                 .client_message_id = recived_message.message_id,
                 .conn = self.conn,
+                .only_return_body = false,
             }) catch undefined;
-            const internal_message_id = uuid.UUID.v4();
             recived_message.message_id = internal_message_id;
 
             self.app.replica.message_statuses[fiber_index] = .Ready;
@@ -183,8 +185,17 @@ const Client = struct {
     }
 };
 
-fn temp_return(message_id: uuid.UUID, body: []const u8) void {
-    message_id_map.get(message_id).?.conn.writeBin(body) catch {
-        std.debug.assert(false);
-    };
+fn temp_return(message_id: uuid.UUID, message: []align(16) u8) void {
+    if (message_id_map.get(message_id)) |value| {
+        if (value.only_return_body) {
+            const header: *message_header.Header.Reply = @ptrCast(@constCast(message));
+            value.conn.writeBin(message[@sizeOf(message_header.Header.Reply)..header.size]) catch {
+                std.debug.assert(false);
+            };
+        } else {
+            value.conn.writeBin(message) catch {
+                std.debug.assert(false);
+            };
+        }
+    }
 }
