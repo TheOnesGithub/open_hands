@@ -19,3 +19,6 @@ pub const state_machine_config = StateMachineConfig{
     .message_body_size_max = message_body_size_max,
     // .lsm_compaction_ops = lsm_compaction_ops,
 };
+
+pub const MAX_USERNAME_LENGTH = 16;
+pub const MAX_PASSWORD_LENGTH = 64;

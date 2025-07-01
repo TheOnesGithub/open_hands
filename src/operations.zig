@@ -8,6 +8,8 @@ pub const Operation = enum(u8) {
     print = 0,
     add = 1,
     make_string = 2,
+    login_server = 3,
+    login_client = 4,
 };
 
 pub fn BodyType(comptime operation: Operation) type {

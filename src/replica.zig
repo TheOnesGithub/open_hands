@@ -12,6 +12,12 @@ const global_constants = @import("constants.zig");
 const message_header = @import("message_header.zig");
 
 const httpz = @import("httpz");
+const builtin = @import("builtin");
+
+const send = if (builtin.cpu.arch.isWasm())
+    @import("wasm.zig").send
+else
+    null;
 
 pub const Handled_Status = enum(u8) {
     done = 0,
@@ -222,6 +228,41 @@ pub fn ReplicaType(
                     }
                 }
             }
+        }
+
+        pub fn call_remote(
+            self: *Replica,
+            comptime operation: Operation,
+            body: Operations.BodyType(operation),
+            reply: *Operations.ResultType(operation),
+        ) uuid.UUID {
+            _ = self;
+            _ = reply;
+            const message_id = uuid.UUID.v4();
+
+            const buffer: [global_constants.message_size_max]u8 align(16) = undefined;
+            const temp = &buffer;
+            // const temp = &self.messages[fiber_index][0];
+            const t2: *message_header.Header.Request = @ptrCast(@constCast(temp));
+            t2.* = message_header.Header.Request{
+                .request = 0,
+                .command = .request,
+                .client = 0,
+                .operation = operation,
+                .cluster = 0,
+                .release = 0,
+                .message_id = message_id,
+            };
+            const header_size = @sizeOf(message_header.Header.Request);
+            const Body = Operations.BodyType(operation);
+            var ptr_as_int = @intFromPtr(temp);
+            ptr_as_int = ptr_as_int + header_size;
+            const operation_struct: *Body = @ptrFromInt(ptr_as_int);
+            operation_struct.* = body;
+            if (comptime builtin.cpu.arch.isWasm()) {
+                send(temp, buffer.len);
+            }
+            return message_id;
         }
 
         pub fn call_local(

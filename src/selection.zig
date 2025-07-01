@@ -2,6 +2,7 @@ const std = @import("std");
 const replica = @import("replica.zig");
 const main = @import("main.zig");
 const StackStringZig = @import("stack_string.zig");
+const global_constants = @import("constants.zig");
 
 pub const operations = struct {
     pub const print = struct {
@@ -53,6 +54,51 @@ pub const operations = struct {
             _ = body;
             result.* = Result.init("made string in make string");
             return .done;
+        }
+    };
+
+    pub const login_server = struct {
+        pub const Body = struct {
+            username: StackStringZig.StackString(global_constants.MAX_USERNAME_LENGTH),
+            password: StackStringZig.StackString(global_constants.MAX_PASSWORD_LENGTH),
+        };
+        pub const Result = struct {
+            is_logged_in_successfully: bool,
+        };
+        pub const State = struct {};
+        pub fn call(rep: *main.Replica, body: *Body, result: *Result, state: *State) replica.Handled_Status {
+            _ = rep;
+            _ = state;
+            _ = body;
+            result.* = Result{
+                .is_logged_in_successfully = true,
+            };
+            return .done;
+        }
+    };
+
+    pub const login_client = struct {
+        pub const Body = struct {
+            username: StackStringZig.StackString(global_constants.MAX_USERNAME_LENGTH),
+            password: StackStringZig.StackString(global_constants.MAX_PASSWORD_LENGTH),
+        };
+        pub const Result = struct {};
+        pub const State = struct {
+            is_has_ran: bool = false,
+            login_result: login_server.Result = .{ .is_logged_in_successfully = false },
+        };
+        pub fn call(rep: *main.Replica, body: *Body, result: *Result, state: *State) replica.Handled_Status {
+            _ = result;
+            if (state.is_has_ran) {
+                return .done;
+            }
+            const add_message_id = rep.call_remote(.login_server, login_server.Body{
+                .username = body.username,
+                .password = body.password,
+            }, &state.login_result);
+            rep.add_wait(&add_message_id);
+            state.is_has_ran = true;
+            return .wait;
         }
     };
 };
