@@ -17,6 +17,7 @@ const FixedBufferAllocator = std.heap.FixedBufferAllocator;
 var message_id_buffer: [global_constants.message_wait_on_map_buffer_size]u8 = undefined;
 var message_id_map: AutoHashMap(uuid.UUID, Message_Request_Value) = undefined;
 var fba: std.heap.FixedBufferAllocator = undefined;
+const IO = @import("io.zig");
 
 pub const Message_Request_Value = struct {
     client_message_id: uuid.UUID,
@@ -44,6 +45,7 @@ pub fn replica_start(replica: *Replica) void {
 pub fn start() !void {
     // var replica: Replica = undefined;
     // try replica.init(.{});
+    _ = IO.IO.init(1, 0) catch unreachable;
 
     fba = FixedBufferAllocator.init(&message_id_buffer);
     const fixed_buffer_allocator = fba.allocator();
