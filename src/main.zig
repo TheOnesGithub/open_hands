@@ -7,9 +7,9 @@ const message_header = @import("message_header.zig");
 const global_constants = @import("constants.zig");
 const Operations = @import("operations.zig");
 const uuid = @import("uuid.zig");
-const sl = @import("selection.zig");
+const gateway = @import("gateway/gateway.zig");
 
-pub const Replica = ReplicaZig.ReplicaType(sl.operations_server);
+pub const Replica = ReplicaZig.ReplicaType(gateway.system);
 
 const AutoHashMap = std.AutoHashMap;
 const FixedBufferAllocator = std.heap.FixedBufferAllocator;
@@ -168,7 +168,7 @@ const Client = struct {
             @memcpy(temp, data);
 
             // TODO: change the message id to a internal id
-            const recived_message: *message_header.Header.Request(sl.operations_server.Operation) = @ptrCast(temp);
+            const recived_message: *message_header.Header.Request(gateway.system.Operation) = @ptrCast(temp);
             // save the client message id
             const internal_message_id = uuid.UUID.v4();
             message_id_map.put(internal_message_id, Message_Request_Value{
@@ -188,8 +188,8 @@ const Client = struct {
 fn temp_return(message_id: uuid.UUID, message: []align(16) u8) void {
     if (message_id_map.get(message_id)) |value| {
         if (value.only_return_body) {
-            const header: *message_header.Header.Reply(sl.operations_server.Operation) = @ptrCast(@constCast(message));
-            value.conn.writeBin(message[@sizeOf(message_header.Header.Reply(sl.operations_server.Operation))..header.size]) catch {
+            const header: *message_header.Header.Reply(gateway.system.Operation) = @ptrCast(@constCast(message));
+            value.conn.writeBin(message[@sizeOf(message_header.Header.Reply(gateway.system.Operation))..header.size]) catch {
                 std.debug.assert(false);
             };
         } else {

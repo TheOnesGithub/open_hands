@@ -3,15 +3,11 @@ const uuid = @import("uuid.zig");
 const stack_string = @import("stack_string.zig");
 const global_constants = @import("constants.zig");
 const message_header = @import("message_header.zig");
-// const Operations = @import("operations.zig");
-// pub const StateMachineZig = @import("state_machine.zig");
 pub const ReplicaZig = @import("replica.zig");
+pub const client = @import("client/client.zig");
+const Operations = @import("operations.zig");
 
-const sl = @import("selection.zig");
-
-// pub const StateMachine =
-//     StateMachineZig.StateMachineType(global_constants.state_machine_config, sl.operations_client);
-pub const Replica = ReplicaZig.ReplicaType(sl.operations_client);
+pub const Replica = ReplicaZig.ReplicaType(client.system);
 
 const allocator = std.heap.wasm_allocator;
 
@@ -70,8 +66,8 @@ export fn login(
 
     if (replica.resurveAvailableFiber()) |fiber_index| {
         const temp = &replica.messages[fiber_index][0];
-        const t2: *message_header.Header.Request(sl.operations_client.Operation) = @ptrCast(temp);
-        t2.* = message_header.Header.Request(sl.operations_client.Operation){
+        const t2: *message_header.Header.Request(client.system.Operation) = @ptrCast(temp);
+        t2.* = message_header.Header.Request(client.system.Operation){
             .request = 0,
             .command = .request,
             .client = 0,
@@ -80,8 +76,8 @@ export fn login(
             .release = 0,
             .message_id = uuid.UUID.v4(),
         };
-        const header_size = @sizeOf(message_header.Header.Request(sl.operations_client.Operation));
-        const Body = sl.operations_client.BodyType(.login_client);
+        const header_size = @sizeOf(message_header.Header.Request(client.system.Operation));
+        const Body = Operations.BodyType(client.system, .login_client);
         var ptr_as_int = @intFromPtr(temp);
         ptr_as_int = ptr_as_int + header_size;
         const operation_struct: *Body = @ptrFromInt(ptr_as_int);

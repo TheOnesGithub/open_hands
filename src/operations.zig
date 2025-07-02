@@ -4,26 +4,26 @@ const project = @import("selection.zig");
 const replica = @import("replica.zig");
 const main = @import("main.zig");
 
-// pub fn BodyType(comptime Operations: type, comptime operation: Operations.Operation) type {
-//     return @field(Operations.operations, @tagName(operation)).Body;
-// }
-//
-// pub fn ResultType(comptime Operations: type, comptime operation: Operations.Operation) type {
-//     return @field(Operations.operations, @tagName(operation)).Result;
-// }
-//
-// pub fn StateType(comptime Operations: type, comptime operation: Operations.Operation) type {
-//     return @field(Operations.operations, @tagName(operation)).State;
-// }
-//
-// pub fn CallType(comptime Operations: type, comptime operation: Operations.Operation) fn (
-//     *anyopaque,
-//     *BodyType(Operations, operation),
-//     *ResultType(Operations, operation),
-//     *StateType(Operations, operation),
-// ) replica.Handled_Status {
-//     return @field(Operations.operations, @tagName(operation)).call;
-// }
+pub fn BodyType(comptime Operations: type, comptime operation: Operations.Operation) type {
+    return @field(Operations.operations, @tagName(operation)).Body;
+}
+
+pub fn ResultType(comptime Operations: type, comptime operation: Operations.Operation) type {
+    return @field(Operations.operations, @tagName(operation)).Result;
+}
+
+pub fn StateType(comptime Operations: type, comptime operation: Operations.Operation) type {
+    return @field(Operations.operations, @tagName(operation)).State;
+}
+
+pub fn CallType(comptime Operations: type, comptime operation: Operations.Operation) fn (
+    *anyopaque,
+    *BodyType(Operations, operation),
+    *ResultType(Operations, operation),
+    *StateType(Operations, operation),
+) replica.Handled_Status {
+    return @field(Operations.operations, @tagName(operation)).call;
+}
 
 comptime {
     // for (std.meta.fields(operations)) |field| {
