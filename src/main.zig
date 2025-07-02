@@ -7,7 +7,7 @@ const message_header = @import("message_header.zig");
 const global_constants = @import("constants.zig");
 const Operations = @import("operations.zig");
 const uuid = @import("uuid.zig");
-const gateway = @import("gateway/gateway.zig");
+const gateway = @import("systems/gateway/gateway.zig");
 
 pub const Replica = ReplicaZig.ReplicaType(gateway.system);
 

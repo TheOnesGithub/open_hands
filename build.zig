@@ -20,6 +20,16 @@ pub fn build(b: *std.Build) void {
 
     // the executable from your call to b.addExecutable(...)
     native_exe.root_module.addImport("httpz", httpz.module("httpz"));
+
+    const lmdb_dep = b.dependency("lmdb", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    const lmdb = lmdb_dep.module("lmdb");
+
+    native_exe.root_module.addImport("lmdb", lmdb);
+    native_exe.linkSystemLibrary("c");
+
     b.installArtifact(native_exe);
 
     // WASM build

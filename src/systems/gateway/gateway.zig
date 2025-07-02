@@ -1,7 +1,7 @@
 const std = @import("std");
-const global_constants = @import("../constants.zig");
-const replica = @import("../replica.zig");
-const StackStringZig = @import("../stack_string.zig");
+const global_constants = @import("../../constants.zig");
+const replica = @import("../../replica.zig");
+const StackStringZig = @import("../../stack_string.zig");
 
 pub const system = struct {
     pub const Operation = enum(u8) {

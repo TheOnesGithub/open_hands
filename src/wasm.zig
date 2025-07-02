@@ -4,7 +4,7 @@ const stack_string = @import("stack_string.zig");
 const global_constants = @import("constants.zig");
 const message_header = @import("message_header.zig");
 pub const ReplicaZig = @import("replica.zig");
-pub const client = @import("client/client.zig");
+pub const client = @import("systems/client/client.zig");
 const Operations = @import("operations.zig");
 
 pub const Replica = ReplicaZig.ReplicaType(client.system);
