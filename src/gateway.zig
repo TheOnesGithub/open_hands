@@ -9,6 +9,7 @@ const Operations = @import("operations.zig");
 const uuid = @import("uuid.zig");
 const gateway = @import("systems/gateway/gateway.zig");
 const AppState = @import("systems/gateway/gateway.zig").AppState;
+const kv = @import("systems/kv/kv.zig");
 
 pub const Replica = ReplicaZig.ReplicaType(
     gateway.system,
@@ -58,7 +59,7 @@ pub fn call_kv(ptr: [*]const u8, len: usize) void {
     client_db.writeBin(@constCast(ptr[0..len])) catch undefined;
 }
 
-pub fn startKVServerClient(passed_client_db: *websocket.Client) !void {
+pub fn startKVServerClient(passed_client_db: *websocket.Client, replica: *Replica) !void {
     client_db = passed_client_db;
     var gpa_db = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator_db = gpa_db.allocator();
@@ -98,7 +99,7 @@ pub fn startKVServerClient(passed_client_db: *websocket.Client) !void {
 
         switch (message.type) {
             .text, .binary => {
-                if (message.data.len < @sizeOf(message_header.Header.Reply(gateway.system.Operation))) {
+                if (message.data.len < @sizeOf(message_header.Header.Reply(kv.system.Operation))) {
                     std.debug.print("recieved message is too small\n", .{});
                     continue;
                 }
@@ -110,10 +111,26 @@ pub fn startKVServerClient(passed_client_db: *websocket.Client) !void {
 
                 std.debug.print("received from kv: {any}\n", .{message.data});
                 // cast data to a recieved header
-                const header: *message_header.Header.Reply(gateway.system.Operation) = @ptrCast(&buffer);
+                const header: *message_header.Header.Reply(kv.system.Operation) = @ptrCast(&buffer);
                 // get the message id
                 const message_id = header.message_id;
                 std.debug.print("message id: {any}\n", .{message_id});
+
+                // route the reply to the corrent message based on the message id
+                // this needs to be able to interact with the replica
+                // this needs to be made thread safe
+                if (replica.message_wait_on_map.get(message_id)) |value| {
+                    if (value.is_fiber_waiting) {
+                        replica.message_waiting_on_count[value.waiting_index] = replica.message_waiting_on_count[value.waiting_index] - 1;
+                    }
+                    std.debug.assert(value.reply_size < @sizeOf(Operations.ResultType(kv.system, .login_client)) + 1);
+                    const casted_reply: *Operations.ResultType(kv.system, .login_client) = @alignCast(@ptrCast(&replica.messages_state[value.waiting_index][value.reply_offset]));
+
+                    // casted_reply.* = buffer[@sizeOf(message_header.Header.Reply(kv.system))..header.size];
+                    // @memcpy(casted_reply, buffer[@sizeOf(message_header.Header.Reply(kv.system))..header.size]);
+                    @memcpy(std.mem.asBytes(casted_reply), buffer[@sizeOf(message_header.Header.Reply(kv.system.Operation))..header.size]);
+                    std.debug.print("got vk reply chcek\r\n", .{});
+                }
             },
             .ping => try client_db.writePong(message.data),
             .pong => {},
@@ -126,21 +143,16 @@ pub fn startKVServerClient(passed_client_db: *websocket.Client) !void {
 }
 
 pub fn start() !void {
-    var client_db_src: websocket.Client = undefined;
-    client_db = &client_db_src;
-    const KV_thread = try std.Thread.spawn(.{}, startKVServerClient, .{client_db});
-    _ = KV_thread;
-
-    /////////////////
-
-    // fba = FixedBufferAllocator.init(&message_id_buffer);
-    // const fixed_buffer_allocator = fba.allocator();
-    // message_id_map = AutoHashMap(uuid.UUID, Message_Request_Value).init(fixed_buffer_allocator);
-
     var app = App{};
     try app.replica.init(.{
         .temp_return = &temp_return,
     });
+
+    var client_db_src: websocket.Client = undefined;
+    client_db = &client_db_src;
+    const KV_thread = try std.Thread.spawn(.{}, startKVServerClient, .{ client_db, &app.replica });
+    _ = KV_thread;
+
     _ = std.Thread.spawn(.{}, replica_start, .{&app.replica}) catch |err| {
         return err;
     };

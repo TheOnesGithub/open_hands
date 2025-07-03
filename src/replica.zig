@@ -164,6 +164,9 @@ pub fn ReplicaType(
                     const h: *message_header.Header = @ptrCast(&self.messages[idx][0]);
                     if (h.command == .request) {
                         const h_request: *message_header.Header.Request(System.Operation) = @ptrCast(h);
+                        if (comptime !builtin.cpu.arch.isWasm()) {
+                            std.debug.print("got tick message id: {}\r\n", .{h_request.message_id});
+                        }
                         inline for (std.meta.fields(System.Operation)) |field| {
                             const op_enum_value = @field(System.Operation, field.name);
                             if (h_request.operation == op_enum_value) {
@@ -215,6 +218,9 @@ pub fn ReplicaType(
                                         casted_reply.* = r.*;
                                         self.message_statuses[self.current_message] = .Available;
                                     } else {
+                                        if (comptime !builtin.cpu.arch.isWasm()) {
+                                            std.debug.print("remote return message id: {}\r\n", .{h_request.message_id});
+                                        }
                                         self.temp_return(self.app_state_data[idx], buffer[0..header_reply.size]);
                                         // const ptr: [*]const u8 = @ptrCast(&buffer[0]);
                                         // self.temp_return(h_request.message_id, ptr[0..header_reply.size]);
@@ -234,9 +240,20 @@ pub fn ReplicaType(
             body: Operations.BodyType(Remote_Operations, operation),
             reply: *Operations.ResultType(Remote_Operations, operation),
         ) uuid.UUID {
-            _ = self;
-            _ = reply;
+            const reply_offset = @intFromPtr(reply) - @intFromPtr(&self.messages_state[self.current_message][0]);
+            std.debug.assert(reply_offset < global_constants.message_body_size_max);
+
             const message_id = uuid.UUID.v4();
+            const message_request_value = Message_Request_Value{
+                .waiting_index = self.current_message,
+                .is_fiber_waiting = false,
+                .reply_offset = reply_offset,
+                .reply_size = @sizeOf(Operations.ResultType(Remote_Operations, operation)),
+            };
+            if (comptime !builtin.cpu.arch.isWasm()) {
+                std.debug.print("putting message id in map: {}\r\n", .{message_id});
+            }
+            self.message_wait_on_map.put(message_id, message_request_value) catch undefined;
 
             var buffer: [global_constants.message_size_max]u8 align(16) = undefined;
             const temp = &buffer;

@@ -128,6 +128,7 @@ pub const system = struct {
                 ) = @alignCast(@ptrCast(rep));
                 _ = result;
                 if (state.is_has_ran) {
+                    std.debug.print("state machine got vaule from kv\r\n", .{});
                     return .done;
                 }
                 const add_message_id = repd.call_remote(
