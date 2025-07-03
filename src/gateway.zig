@@ -41,10 +41,23 @@ pub fn main() !void {
 }
 
 pub fn replica_start(replica: *Replica) void {
-    // var replica: Replica = undefined;
-    // try replica.init(.{});
+    // backoff in nothing is ran
+    var backoff: u64 = 0;
     while (true) {
-        replica.tick();
+        if (replica.tick()) {
+            std.debug.print("backoff: {}\r\n", .{backoff});
+            backoff = 0;
+        } else {
+            backoff += 10;
+            if (backoff > 10) {
+                // sleep based on the backoff
+                // set a a max of half a second
+                if (backoff > std.time.ns_per_s / 10) {
+                    backoff = std.time.ns_per_s / 10;
+                }
+                std.time.sleep(backoff);
+            }
+        }
     }
 }
 

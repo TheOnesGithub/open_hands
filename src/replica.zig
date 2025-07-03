@@ -146,12 +146,15 @@ pub fn ReplicaType(
             // self.state_machine.deinit(allocator);
         }
 
-        pub fn tick(self: *Replica) void {
+        // return true if a message was processed
+        pub fn tick(self: *Replica) bool {
             var i: usize = self.top;
+            var processed: bool = false;
             while (i > 0) {
                 i -= 1;
                 const idx = self.message_indexs[i];
                 if (self.message_statuses[idx] == .Ready or (self.message_statuses[idx] == .Suspended and self.message_waiting_on_count[idx] == 0)) {
+                    processed = true;
                     // Remove the item by shifting the others up
                     for (i..self.top - 1) |j| {
                         self.message_indexs[j] = self.message_indexs[j + 1];
@@ -201,7 +204,7 @@ pub fn ReplicaType(
                                 if (hs == .not_done) {
                                     self.message_statuses[idx] = .Ready;
                                     self.push(idx) catch {
-                                        return;
+                                        return true;
                                     };
                                 } else if (hs == .wait) {
                                     self.message_statuses[idx] = .Suspended;
@@ -231,6 +234,7 @@ pub fn ReplicaType(
                     }
                 }
             }
+            return processed;
         }
 
         pub fn call_remote(

@@ -41,7 +41,7 @@ pub export fn free(ptr: [*]u8, len: usize) void {
 }
 
 pub export fn tick() void {
-    replica.tick();
+    _ = replica.tick();
 }
 
 export fn login(
