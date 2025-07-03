@@ -20,15 +20,15 @@ const AutoHashMap = std.AutoHashMap;
 const FixedBufferAllocator = std.heap.FixedBufferAllocator;
 
 var message_id_buffer: [global_constants.message_wait_on_map_buffer_size]u8 = undefined;
-var message_id_map: AutoHashMap(uuid.UUID, Message_Request_Value) = undefined;
+// var message_id_map: AutoHashMap(uuid.UUID, Message_Request_Value) = undefined;
 var fba: std.heap.FixedBufferAllocator = undefined;
 const IO = @import("io.zig");
 
-pub const Message_Request_Value = struct {
-    client_message_id: uuid.UUID,
-    conn: *httpz.websocket.Conn,
-    only_return_body: bool,
-};
+// pub const Message_Request_Value = struct {
+//     client_message_id: uuid.UUID,
+//     conn: *httpz.websocket.Conn,
+//     only_return_body: bool,
+// };
 
 const App = struct {
     pub const WebsocketHandler = Client;
@@ -48,13 +48,10 @@ pub fn replica_start(replica: *Replica) void {
 }
 
 pub fn start() !void {
-    // var replica: Replica = undefined;
-    // try replica.init(.{});
-    _ = IO.IO.init(1, 0) catch unreachable;
 
-    fba = FixedBufferAllocator.init(&message_id_buffer);
-    const fixed_buffer_allocator = fba.allocator();
-    message_id_map = AutoHashMap(uuid.UUID, Message_Request_Value).init(fixed_buffer_allocator);
+    // fba = FixedBufferAllocator.init(&message_id_buffer);
+    // const fixed_buffer_allocator = fba.allocator();
+    // message_id_map = AutoHashMap(uuid.UUID, Message_Request_Value).init(fixed_buffer_allocator);
 
     var app = App{};
     try app.replica.init(.{
@@ -178,11 +175,14 @@ const Client = struct {
             const recived_message: *message_header.Header.Request(kv.system.Operation) = @ptrCast(temp);
             // save the client message id
             const internal_message_id = uuid.UUID.v4();
-            message_id_map.put(internal_message_id, Message_Request_Value{
-                .client_message_id = recived_message.message_id,
+            self.app.replica.app_state_data[fiber_index] = AppState{
                 .conn = self.conn,
-                .only_return_body = false,
-            }) catch undefined;
+            };
+            // message_id_map.put(internal_message_id, Message_Request_Value{
+            //     .client_message_id = recived_message.message_id,
+            //     .conn = self.conn,
+            //     .only_return_body = false,
+            // }) catch undefined;
             recived_message.message_id = internal_message_id;
 
             self.app.replica.message_statuses[fiber_index] = .Ready;
