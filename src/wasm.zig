@@ -25,8 +25,10 @@ fn handle_network_reply(message_id: uuid.UUID, buffer_ptr: [*]u8) void {
     _ = message_id;
 }
 
+var system_instance: client.system = client.system{};
+
 pub export fn init() void {
-    replica.init(.{ .temp_return = &temp_return }) catch undefined;
+    replica.init(&system_instance, .{ .temp_return = &temp_return }) catch undefined;
 }
 
 pub export fn alloc(size: usize) ?[*]u8 {
@@ -72,8 +74,8 @@ pub export fn signup(
 
     if (replica.resurveAvailableFiber()) |fiber_index| {
         const temp = &replica.messages[fiber_index][0];
-        const t2: *message_header.Header.Request(client.system.Operation) = @ptrCast(temp);
-        t2.* = message_header.Header.Request(client.system.Operation){
+        const t2: *message_header.Header.Request(client.system) = @ptrCast(temp);
+        t2.* = message_header.Header.Request(client.system){
             .request = 0,
             .command = .request,
             .client = 0,
@@ -82,7 +84,7 @@ pub export fn signup(
             .release = 0,
             .message_id = uuid.UUID.v4(),
         };
-        const header_size = @sizeOf(message_header.Header.Request(client.system.Operation));
+        const header_size = @sizeOf(message_header.Header.Request(client.system));
         const Body = Operations.BodyType(client.system, .signup_client);
         var ptr_as_int = @intFromPtr(temp);
         ptr_as_int = ptr_as_int + header_size;
@@ -123,8 +125,8 @@ export fn login(
 
     if (replica.resurveAvailableFiber()) |fiber_index| {
         const temp = &replica.messages[fiber_index][0];
-        const t2: *message_header.Header.Request(client.system.Operation) = @ptrCast(temp);
-        t2.* = message_header.Header.Request(client.system.Operation){
+        const t2: *message_header.Header.Request(client.system) = @ptrCast(temp);
+        t2.* = message_header.Header.Request(client.system){
             .request = 0,
             .command = .request,
             .client = 0,
@@ -133,7 +135,7 @@ export fn login(
             .release = 0,
             .message_id = uuid.UUID.v4(),
         };
-        const header_size = @sizeOf(message_header.Header.Request(client.system.Operation));
+        const header_size = @sizeOf(message_header.Header.Request(client.system));
         const Body = Operations.BodyType(client.system, .login_client);
         var ptr_as_int = @intFromPtr(temp);
         ptr_as_int = ptr_as_int + header_size;

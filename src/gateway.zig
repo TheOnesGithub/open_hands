@@ -67,7 +67,7 @@ var client_db: *websocket.Client = undefined;
 pub fn call_kv(ptr: [*]const u8, len: usize) void {
     std.debug.print("call kv in gateway\r\n", .{});
     // print the message id
-    const header: *message_header.Header.Request(gateway.system.Operation) = @constCast(@ptrCast(@alignCast(ptr[0..len])));
+    const header: *message_header.Header.Request(gateway.system) = @constCast(@ptrCast(@alignCast(ptr[0..len])));
     const message_id = header.message_id;
     std.debug.print("message id: {any}\n", .{message_id});
     client_db.writeBin(@constCast(ptr[0..len])) catch undefined;
@@ -113,7 +113,7 @@ pub fn startKVServerClient(passed_client_db: *websocket.Client, replica: *Replic
 
         switch (message.type) {
             .text, .binary => {
-                if (message.data.len < @sizeOf(message_header.Header.Reply(kv.system.Operation))) {
+                if (message.data.len < @sizeOf(message_header.Header.Reply(kv.system))) {
                     std.debug.print("recieved message is too small\n", .{});
                     continue;
                 }
@@ -125,7 +125,7 @@ pub fn startKVServerClient(passed_client_db: *websocket.Client, replica: *Replic
 
                 std.debug.print("received from kv: {any}\n", .{message.data});
                 // cast data to a recieved header
-                const header: *message_header.Header.Reply(kv.system.Operation) = @ptrCast(&buffer);
+                const header: *message_header.Header.Reply(kv.system) = @ptrCast(&buffer);
                 // get the message id
                 const message_id = header.message_id;
                 std.debug.print("message id: {any}\n", .{message_id});
@@ -147,8 +147,8 @@ pub fn startKVServerClient(passed_client_db: *websocket.Client, replica: *Replic
                     // @memcpy(casted_reply, buffer[@sizeOf(message_header.Header.Reply(kv.system))..header.size]);
                     // @memcpy(std.mem.asBytes(casted_reply), buffer[@sizeOf(message_header.Header.Reply(kv.system.Operation))..header.size]);
                     @memcpy(
-                        replica.messages_state[value.waiting_index][value.reply_offset .. value.reply_offset + (header.size - @sizeOf(message_header.Header.Reply(kv.system.Operation)))],
-                        buffer[@sizeOf(message_header.Header.Reply(kv.system.Operation))..header.size],
+                        replica.messages_state[value.waiting_index][value.reply_offset .. value.reply_offset + (header.size - @sizeOf(message_header.Header.Reply(kv.system)))],
+                        buffer[@sizeOf(message_header.Header.Reply(kv.system))..header.size],
                     );
 
                     std.debug.print("got vk reply chcek\r\n", .{});
@@ -166,9 +166,12 @@ pub fn startKVServerClient(passed_client_db: *websocket.Client, replica: *Replic
 
 pub fn start() !void {
     var app = App{};
-    try app.replica.init(.{
-        .temp_return = &temp_return,
-    });
+
+    var system_instance: gateway.system = gateway.system{};
+    try app.replica.init(
+        &system_instance,
+        .{ .temp_return = &temp_return },
+    );
 
     var client_db_src: websocket.Client = undefined;
     client_db = &client_db_src;
@@ -328,7 +331,7 @@ const Client = struct {
             @memcpy(temp, data);
 
             // TODO: change the message id to a internal id
-            const recived_message: *message_header.Header.Request(gateway.system.Operation) = @ptrCast(temp);
+            const recived_message: *message_header.Header.Request(gateway.system) = @ptrCast(temp);
             // save the client message id
             const internal_message_id = uuid.UUID.v4();
             self.app.replica.app_state_data[fiber_index] = AppState{
@@ -352,8 +355,8 @@ const Client = struct {
 
 fn temp_return(app_state: AppState, message: []align(16) u8) void {
     if (app_state.only_return_body) {
-        const header: *message_header.Header.Reply(gateway.system.Operation) = @ptrCast(@constCast(message));
-        app_state.conn.writeBin(message[@sizeOf(message_header.Header.Reply(gateway.system.Operation))..header.size]) catch {
+        const header: *message_header.Header.Reply(gateway.system) = @ptrCast(@constCast(message));
+        app_state.conn.writeBin(message[@sizeOf(message_header.Header.Reply(gateway.system))..header.size]) catch {
             std.debug.assert(false);
         };
     } else {

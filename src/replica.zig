@@ -47,6 +47,7 @@ pub fn ReplicaType(
 ) type {
     return struct {
         const Replica = @This();
+        system: *System = undefined,
         app_state_data: [global_constants.message_number_max]AppState = undefined,
 
         temp_return: *const fn (AppState, []align(16) u8) void = undefined,
@@ -105,6 +106,7 @@ pub fn ReplicaType(
         pub fn init(
             self: *Replica,
             // allocator: Allocator,
+            system: *System,
             options: Options,
         ) !void {
             // try self.state_machine.init(
@@ -121,6 +123,7 @@ pub fn ReplicaType(
             self.message_wait_on_map = AutoHashMap(uuid.UUID, Message_Request_Value).init(fixed_buffer_allocator);
 
             self.* = .{
+                .system = system,
                 .temp_return = options.temp_return,
                 .current_message = 0,
                 .message_indexs = self.message_indexs,
@@ -166,7 +169,7 @@ pub fn ReplicaType(
                     var hs: Handled_Status = undefined;
                     const h: *message_header.Header = @ptrCast(&self.messages[idx][0]);
                     if (h.command == .request) {
-                        const h_request: *message_header.Header.Request(System.Operation) = @ptrCast(h);
+                        const h_request: *message_header.Header.Request(System) = @ptrCast(h);
                         if (comptime !builtin.cpu.arch.isWasm()) {
                             std.debug.print("got tick message id: {}\r\n", .{h_request.message_id});
                         }
@@ -175,8 +178,8 @@ pub fn ReplicaType(
                             if (h_request.operation == op_enum_value) {
                                 var buffer: [global_constants.message_size_max]u8 align(16) = undefined;
                                 const temp = &buffer;
-                                const header_reply: *message_header.Header.Reply(System.Operation) = @ptrCast(@constCast(temp));
-                                header_reply.* = message_header.Header.Reply(System.Operation){
+                                const header_reply: *message_header.Header.Reply(System) = @ptrCast(@constCast(temp));
+                                header_reply.* = message_header.Header.Reply(System){
                                     .request = 0,
                                     .command = .reply,
                                     .client = 0,
@@ -192,8 +195,8 @@ pub fn ReplicaType(
                                 };
                                 const Result = Operations.ResultType(System, op_enum_value);
                                 // var r: Result = undefined;
-                                const r: *Result = @ptrCast(@constCast(&temp[@sizeOf(message_header.Header.Reply(System.Operation))..][0]));
-                                header_reply.size = @sizeOf(Result) + @sizeOf(message_header.Header.Reply(System.Operation));
+                                const r: *Result = @ptrCast(@constCast(&temp[@sizeOf(message_header.Header.Reply(System))..][0]));
+                                header_reply.size = @sizeOf(Result) + @sizeOf(message_header.Header.Reply(System));
                                 hs = self.execute(
                                     op_enum_value,
                                     &self.messages[idx],
@@ -262,8 +265,8 @@ pub fn ReplicaType(
             var buffer: [global_constants.message_size_max]u8 align(16) = undefined;
             const temp = &buffer;
             // const temp = &self.messages[fiber_index][0];
-            const t2: *message_header.Header.Request(Remote_Operations.Operation) = @ptrCast(@constCast(temp));
-            t2.* = message_header.Header.Request(Remote_Operations.Operation){
+            const t2: *message_header.Header.Request(Remote_Operations) = @ptrCast(@constCast(temp));
+            t2.* = message_header.Header.Request(Remote_Operations){
                 .request = 0,
                 .command = .request,
                 .client = 0,
@@ -272,7 +275,7 @@ pub fn ReplicaType(
                 .release = 0,
                 .message_id = message_id,
             };
-            const header_size = @sizeOf(message_header.Header.Request(Remote_Operations.Operation));
+            const header_size = @sizeOf(message_header.Header.Request(Remote_Operations));
             const Body = Operations.BodyType(Remote_Operations, operation);
             var ptr_as_int = @intFromPtr(temp);
             ptr_as_int = ptr_as_int + header_size;
@@ -308,8 +311,8 @@ pub fn ReplicaType(
 
             if (self.resurveAvailableFiber()) |fiber_index| {
                 const temp = &self.messages[fiber_index][0];
-                const t2: *message_header.Header.Request(System.Operation) = @ptrCast(temp);
-                t2.* = message_header.Header.Request(System.Operation){
+                const t2: *message_header.Header.Request(System) = @ptrCast(temp);
+                t2.* = message_header.Header.Request(System){
                     .request = 0,
                     .command = .request,
                     .client = 0,
@@ -318,7 +321,7 @@ pub fn ReplicaType(
                     .release = 0,
                     .message_id = message_id,
                 };
-                const header_size = @sizeOf(message_header.Header.Request(System.Operation));
+                const header_size = @sizeOf(message_header.Header.Request(System));
                 const Body = Operations.BodyType(System, operation);
                 var ptr_as_int = @intFromPtr(temp);
                 ptr_as_int = ptr_as_int + header_size;
@@ -367,7 +370,7 @@ pub fn ReplicaType(
 
             const state: *State = @ptrCast(message_state);
 
-            return Call(self, operation_struct, res, state);
+            return Call(self.system, self, operation_struct, res, state);
         }
     };
 }

@@ -17,6 +17,7 @@ pub fn StateType(comptime Operations: type, comptime operation: Operations.Opera
 }
 
 pub fn CallType(comptime Operations: type, comptime operation: Operations.Operation) fn (
+    *Operations,
     *anyopaque,
     *BodyType(Operations, operation),
     *ResultType(Operations, operation),

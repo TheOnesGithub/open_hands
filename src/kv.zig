@@ -9,12 +9,7 @@ const Operations = @import("operations.zig");
 const uuid = @import("uuid.zig");
 const kv = @import("systems/kv/kv.zig");
 const AppState = @import("systems/kv/kv.zig").AppState;
-
-pub const Replica = ReplicaZig.ReplicaType(
-    kv.system,
-    AppState,
-    &kv.remote_services,
-);
+const lmdb = @import("lmdb");
 
 const AutoHashMap = std.AutoHashMap;
 const FixedBufferAllocator = std.heap.FixedBufferAllocator;
@@ -32,14 +27,14 @@ const IO = @import("io.zig");
 
 const App = struct {
     pub const WebsocketHandler = Client;
-    replica: Replica = undefined,
+    replica: kv.Replica = undefined,
 };
 
 pub fn main() !void {
     try start();
 }
 
-pub fn replica_start(replica: *Replica) void {
+pub fn replica_start(replica: *kv.Replica) void {
     // backoff in nothing is ran
     var backoff: u64 = 0;
     while (true) {
@@ -61,15 +56,19 @@ pub fn replica_start(replica: *Replica) void {
 }
 
 pub fn start() !void {
+    const lmdb_env = try lmdb.Environment.init("dbs", .{
+        .max_dbs = 2, // or higher if needed
+    });
+    defer lmdb_env.deinit();
 
-    // fba = FixedBufferAllocator.init(&message_id_buffer);
-    // const fixed_buffer_allocator = fba.allocator();
-    // message_id_map = AutoHashMap(uuid.UUID, Message_Request_Value).init(fixed_buffer_allocator);
+    var system_instance: kv.system = undefined;
+    try system_instance.init(&lmdb_env);
 
     var app = App{};
-    try app.replica.init(.{
-        .temp_return = &temp_return,
-    });
+    try app.replica.init(
+        &system_instance,
+        .{ .temp_return = &temp_return },
+    );
     _ = std.Thread.spawn(.{}, replica_start, .{&app.replica}) catch |err| {
         return err;
     };

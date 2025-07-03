@@ -411,7 +411,7 @@ pub const Header = extern struct {
     };
 
     pub fn Request(
-        Operation: type,
+        System: type,
     ) type {
         return extern struct {
             pub usingnamespace HeaderFunctionsType(@This());
@@ -464,7 +464,7 @@ pub const Header = extern struct {
             ///
             /// A client is allowed to have at most one request inflight at a time.
             request: u32,
-            operation: Operation,
+            operation: System.Operation,
             message_id: uuid.UUID,
             reserved: [43]u8 = [_]u8{0} ** 43,
 
@@ -535,7 +535,7 @@ pub const Header = extern struct {
     }
 
     pub fn Reply(
-        Operation: type,
+        System: type,
     ) type {
         return extern struct {
             pub usingnamespace HeaderFunctionsType(@This());
@@ -579,7 +579,7 @@ pub const Header = extern struct {
             request: u32,
             // operation: Operation = .reserved,
             // TODO: change op
-            operation: Operation = undefined,
+            operation: System.Operation = undefined,
             message_id: uuid.UUID,
             reserved: [3]u8 = [_]u8{0} ** 3,
 
