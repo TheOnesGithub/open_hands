@@ -238,7 +238,7 @@ pub fn ReplicaType(
             _ = reply;
             const message_id = uuid.UUID.v4();
 
-            const buffer: [global_constants.message_size_max]u8 align(16) = undefined;
+            var buffer: [global_constants.message_size_max]u8 align(16) = undefined;
             const temp = &buffer;
             // const temp = &self.messages[fiber_index][0];
             const t2: *message_header.Header.Request(Remote_Operations.Operation) = @ptrCast(@constCast(temp));
@@ -259,7 +259,9 @@ pub fn ReplicaType(
             operation_struct.* = body;
 
             inline for (RemoteServices) |remote_service| {
-                remote_service.call(temp, buffer.len);
+                if (remote_service.service_type == Remote_Operations) {
+                    remote_service.call(temp, buffer.len);
+                }
             }
 
             return message_id;
