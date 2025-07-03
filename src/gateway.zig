@@ -47,12 +47,20 @@ pub fn replica_start(replica: *Replica) void {
     }
 }
 
-pub fn start() !void {
+var client_db: *websocket.Client = undefined;
+
+pub fn call_kv(ptr: [*]const u8, len: usize) void {
+    std.debug.print("call kv in gateway\r\n", .{});
+    client_db.writeBin(@constCast(ptr[0..len])) catch undefined;
+}
+
+pub fn startKVServerClient(passed_client_db: *websocket.Client) !void {
+    client_db = passed_client_db;
     var gpa_db = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator_db = gpa_db.allocator();
 
     // create the client
-    var client_db = try websocket.Client.init(allocator_db, .{
+    client_db.* = try websocket.Client.init(allocator_db, .{
         .port = 9224,
         .host = "0.0.0.0",
     });
@@ -67,6 +75,42 @@ pub fn start() !void {
         // Separate multiple headers using \r\n
         .headers = "Host: localhost:9224",
     });
+
+    // optional, read will return null after 1 second
+    try client_db.readTimeout(std.time.ms_per_s * 1);
+
+    // echo messages back to the server until the connection is closed
+    while (true) {
+        // since we didn't set a timeout, client.read() will either
+        // return a message or an error (i.e. it won't return null)
+        const message = (try client_db.read()) orelse {
+            // no message after our 1 second
+            std.debug.print(".", .{});
+            continue;
+        };
+
+        // must be called once you're done processing the request
+        defer client_db.done(message);
+
+        switch (message.type) {
+            .text, .binary => {
+                std.debug.print("received from kv: {s}\n", .{message.data});
+            },
+            .ping => try client_db.writePong(message.data),
+            .pong => {},
+            .close => {
+                try client_db.close(.{});
+                break;
+            },
+        }
+    }
+}
+
+pub fn start() !void {
+    var client_db_src: websocket.Client = undefined;
+    client_db = &client_db_src;
+    const KV_thread = try std.Thread.spawn(.{}, startKVServerClient, .{client_db});
+    _ = KV_thread;
 
     /////////////////
 

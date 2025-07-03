@@ -24,9 +24,10 @@ pub const remote_services = [_]replica.RemoteService{
 };
 
 pub fn call_kv(ptr: [*]const u8, len: usize) void {
-    _ = ptr;
-    _ = len;
     std.debug.print("call kv\r\n", .{});
+    if (@import("builtin").cpu.arch != .wasm32) {
+        @import("../../gateway.zig").call_kv(ptr, len);
+    }
 }
 
 pub fn call_client(ptr: [*]const u8, len: usize) void {
