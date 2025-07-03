@@ -1,0 +1,111 @@
+<div class="bg-white shadow-md rounded-lg p-8 w-full max-w-sm">
+  <h2 class="text-2xl font-bold mb-6 text-center">Sign Up</h2>
+  <form id="signup-form" class="space-y-4">
+    <div class="space-y-1">
+      <input
+        type="text"
+        name="username"
+        placeholder="Username"
+        required
+        id="signup-username"
+        class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      <span
+        id="signup-username-error"
+        class="text-red-500 text-sm hidden"
+      >Please enter a username</span>
+    </div>
+
+    <div class="space-y-1">
+      <input
+        type="email"
+        name="email"
+        placeholder="Email"
+        required
+        id="signup-email"
+        class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      <span
+        id="signup-email-error"
+        class="text-red-500 text-sm hidden"
+      >Please enter a valid email</span>
+    </div>
+
+    <div class="space-y-1">
+      <input
+        type="password"
+        name="password"
+        placeholder="Password"
+        required
+        id="signup-password"
+        class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      <span
+        id="signup-password-error"
+        class="text-red-500 text-sm hidden"
+      >Please enter a password</span>
+    </div>
+
+    <div class="space-y-1">
+      <input
+        type="password"
+        name="confirm-password"
+        placeholder="Confirm Password"
+        required
+        id="signup-confirm-password"
+        class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      <span
+        id="signup-confirm-password-error"
+        class="text-red-500 text-sm hidden"
+      >Passwords do not match</span>
+    </div>
+
+    <button
+      type="submit"
+      class="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400"
+    >
+      Sign Up
+    </button>
+  </form>
+</div>
+<script>
+      const form = document.getElementById("signup-form");
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+
+        const username = document.getElementById("signup-username").value;
+        const email = document.getElementById("signup-email").value;
+        const password = document.getElementById("signup-password").value;
+        const confirmPassword = document.getElementById("signup-confirm-password").value;
+
+        const confirmPasswordError = document.getElementById("signup-confirm-password-error");
+
+        if (password !== confirmPassword) {
+            confirmPasswordError.classList.remove("hidden");
+            return;
+        } else {
+            confirmPasswordError.classList.add("hidden");
+        }
+
+        const encoder = new TextEncoder();
+        const usernameBytes = encoder.encode(username);
+        const emailBytes = encoder.encode(email);
+        const passwordBytes = encoder.encode(password);
+
+        const usernamePtr = wasm.alloc(usernameBytes.length);
+        const emailPtr = wasm.alloc(emailBytes.length);
+        const passwordPtr = wasm.alloc(passwordBytes.length);
+
+        new Uint8Array(memory.buffer, usernamePtr, usernameBytes.length).set(usernameBytes);
+        new Uint8Array(memory.buffer, emailPtr, emailBytes.length).set(emailBytes);
+        new Uint8Array(memory.buffer, passwordPtr, passwordBytes.length).set(passwordBytes);
+
+        // Assuming a wasm.signup function exists
+        wasm.signup(usernamePtr, usernameBytes.length, emailPtr, emailBytes.length, passwordPtr, passwordBytes.length);
+
+        wasm.free(usernamePtr, usernameBytes.length);
+        wasm.free(emailPtr, emailBytes.length);
+        wasm.free(passwordPtr, passwordBytes.length);
+      });
+</script>

@@ -3,53 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://unpkg.com
+     'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; connect-src
+     'self' wss://usethecli.com; object-src 'none'; base-uri 'self'; form-action 'self';">
+  <!--<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://unpkg.com
+     'wasm-unsafe-eval'; style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; connect-src 'self'
+     wss://usethecli.com; object-src 'none'; base-uri 'self'; form-action 'self';">-->
   <title>Login</title>
   <script src="https://unpkg.com/htmx.org@1.9.2"></script>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen">
-  <div class="bg-white shadow-md rounded-lg p-8 w-full max-w-sm">
-    <h2 class="text-2xl font-bold mb-6 text-center">Log In</h2>
-    <form id="login-form" class="space-y-4">
-      <div class="space-y-1">
-        <input 
-          type="text" 
-          name="username" 
-          placeholder="Username" 
-          required 
-          id="username" 
-          class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <span 
-          id="username-error" 
-          class="text-red-500 text-sm hidden"
-        >Please enter your username</span>
-      </div>
-
-      <div class="space-y-1">
-        <input 
-          type="password" 
-          name="password" 
-          placeholder="Password" 
-          required 
-          id="password" 
-          class="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <span 
-          id="password-error" 
-          class="text-red-500 text-sm hidden"
-        >Please enter your password</span>
-      </div>
-
-      <button 
-        type="submit" 
-        class="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400"
-      >
-        Log In
-      </button>
-    </form>
-  </div>
-
+        {{content}}
 <script>
     let memory, wasm;
 
@@ -167,32 +132,7 @@
             console.error("WebSocket error", err);
         };
 
-                    document.addEventListener("DOMContentLoaded", () => {
-
-      const form = document.getElementById("login-form");
-      form.addEventListener("submit", (e) => {
-        e.preventDefault();
-
-        const username = document.getElementById("username").value;
-        const password = document.getElementById("password").value;
-
-        const encoder = new TextEncoder();
-        const usernameBytes = encoder.encode(username);
-        const passwordBytes = encoder.encode(password);
-
-        const usernamePtr = wasm.alloc(usernameBytes.length);
-        const passwordPtr = wasm.alloc(passwordBytes.length);
-
-        new Uint8Array(memory.buffer, usernamePtr, usernameBytes.length).set(usernameBytes);
-        new Uint8Array(memory.buffer, passwordPtr, passwordBytes.length).set(passwordBytes);
-
-        wasm.login(usernamePtr, usernameBytes.length, passwordPtr, passwordBytes.length);
-
-        wasm.free(usernamePtr, usernameBytes.length);
-        wasm.free(passwordPtr, passwordBytes.length);
-      });
-
-    });
+                    
   </script>
 </body>
 </html>

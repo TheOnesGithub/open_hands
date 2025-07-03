@@ -21,4 +21,5 @@ pub const state_machine_config = StateMachineConfig{
 };
 
 pub const MAX_USERNAME_LENGTH = 16;
+pub const MAX_EMAIL_LENGTH = 64;
 pub const MAX_PASSWORD_LENGTH = 64;

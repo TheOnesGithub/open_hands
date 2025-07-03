@@ -36,12 +36,19 @@ pub fn call_client(ptr: [*]const u8, len: usize) void {
     std.debug.print("call client\r\n", .{});
 }
 
+pub const Replica = replica.ReplicaType(
+    system,
+    AppState,
+    &remote_services,
+);
+
 pub const system = struct {
     pub const Operation = enum(u8) {
         print = 0,
         add = 1,
         make_string = 2,
-        login_server = 3,
+        signup = 3,
+        login = 4,
     };
 
     pub const operations = struct {
@@ -56,11 +63,7 @@ pub const system = struct {
             pub fn call(rep: *anyopaque, body: *Body, result: *Result, state: *State) replica.Handled_Status {
                 _ = body;
 
-                const repd: *replica.ReplicaType(
-                    system,
-                    AppState,
-                    &remote_services,
-                ) = @alignCast(@ptrCast(rep));
+                const repd: *Replica = @alignCast(@ptrCast(rep));
                 if (state.is_waited_add) {
                     // std.debug.print("print after added got: {}\r\n", .{state.add_result});
                     result.* = state.print_result;
@@ -103,7 +106,45 @@ pub const system = struct {
             }
         };
 
-        pub const login_server = struct {
+        pub const signup = struct {
+            pub const Body = struct {
+                username: StackStringZig.StackString(global_constants.MAX_USERNAME_LENGTH),
+                email: StackStringZig.StackString(global_constants.MAX_EMAIL_LENGTH),
+                password: StackStringZig.StackString(global_constants.MAX_PASSWORD_LENGTH),
+            };
+            pub const Result = struct {
+                is_signed_up_successfully: bool,
+            };
+            pub const State = struct {
+                is_has_ran: bool = false,
+                kv_result: system_kv.operations.signup.Result = .{ .is_signed_up_successfully = false },
+            };
+            pub fn call(rep: *anyopaque, body: *Body, result: *Result, state: *State) replica.Handled_Status {
+                std.debug.print("user is trying to signup\r\n", .{});
+                const repd: *Replica = @alignCast(@ptrCast(rep));
+                if (state.is_has_ran) {
+                    std.debug.print("state machine back after signup\r\n", .{});
+                    result.*.is_signed_up_successfully = state.kv_result.is_signed_up_successfully;
+                    return .done;
+                }
+                const add_message_id = repd.call_remote(
+                    system_kv,
+                    .signup,
+                    .{
+                        .username = body.username,
+                        .email = body.email,
+                        .password = body.password,
+                    },
+                    &state.kv_result,
+                );
+                repd.add_wait(&add_message_id);
+                state.is_has_ran = true;
+                std.debug.print("added login wait\r\n", .{});
+                return .wait;
+            }
+        };
+
+        pub const login = struct {
             pub const Body = struct {
                 username: StackStringZig.StackString(global_constants.MAX_USERNAME_LENGTH),
                 password: StackStringZig.StackString(global_constants.MAX_PASSWORD_LENGTH),
@@ -113,7 +154,7 @@ pub const system = struct {
             };
             pub const State = struct {
                 is_has_ran: bool = false,
-                kv_result: system_kv.operations.login_client.Result = .{ .is_logged_in_successfully = false },
+                kv_result: system_kv.operations.login.Result = .{ .is_logged_in_successfully = false },
             };
             pub fn call(rep: *anyopaque, body: *Body, result: *Result, state: *State) replica.Handled_Status {
                 std.debug.print("user is trying to login\r\n", .{});
@@ -121,11 +162,7 @@ pub const system = struct {
                 // if they are, send a message back to the client saying they are logged in
                 // if not, send a message back saying they are not logged in
 
-                const repd: *replica.ReplicaType(
-                    system,
-                    AppState,
-                    &remote_services,
-                ) = @alignCast(@ptrCast(rep));
+                const repd: *Replica = @alignCast(@ptrCast(rep));
                 _ = result;
                 if (state.is_has_ran) {
                     std.debug.print("state machine got vaule from kv\r\n", .{});
@@ -133,8 +170,8 @@ pub const system = struct {
                 }
                 const add_message_id = repd.call_remote(
                     system_kv,
-                    .login_client,
-                    system_kv.operations.login_client.Body{
+                    .login,
+                    .{
                         .username = body.username,
                         .password = body.password,
                     },

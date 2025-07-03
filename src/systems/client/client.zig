@@ -18,13 +18,52 @@ pub fn call_gateway(ptr: [*]const u8, len: usize) void {
     send(ptr, len);
 }
 
+pub const Replica = replica.ReplicaType(
+    system,
+    AppState,
+    &remote_services,
+);
 // todo: make a better name
 pub const system = struct {
     pub const Operation = enum(u8) {
-        login_client = 0,
+        signup_client = 0,
+        login_client = 1,
     };
 
     pub const operations = struct {
+        pub const signup_client = struct {
+            pub const Body = struct {
+                username: StackStringZig.StackString(global_constants.MAX_USERNAME_LENGTH),
+                email: StackStringZig.StackString(global_constants.MAX_EMAIL_LENGTH),
+                password: StackStringZig.StackString(global_constants.MAX_PASSWORD_LENGTH),
+            };
+            pub const Result = struct {};
+            pub const State = struct {
+                is_has_ran: bool = false,
+                signup_result: system_gateway.operations.signup.Result = .{ .is_signed_up_successfully = false },
+            };
+            pub fn call(rep: *anyopaque, body: *Body, result: *Result, state: *State) replica.Handled_Status {
+                const repd: *Replica = @alignCast(@ptrCast(rep));
+                _ = result;
+                if (state.is_has_ran) {
+                    return .done;
+                }
+                const add_message_id = repd.call_remote(
+                    system_gateway,
+                    .signup,
+                    system_gateway.operations.signup.Body{
+                        .username = body.username,
+                        .email = body.email,
+                        .password = body.password,
+                    },
+                    &state.signup_result,
+                );
+                repd.add_wait(&add_message_id);
+                state.is_has_ran = true;
+                return .wait;
+            }
+        };
+
         pub const login_client = struct {
             pub const Body = struct {
                 username: StackStringZig.StackString(global_constants.MAX_USERNAME_LENGTH),
@@ -33,22 +72,18 @@ pub const system = struct {
             pub const Result = struct {};
             pub const State = struct {
                 is_has_ran: bool = false,
-                login_result: system_gateway.operations.login_server.Result = .{ .is_logged_in_successfully = false },
+                login_result: system_gateway.operations.login.Result = .{ .is_logged_in_successfully = false },
             };
             pub fn call(rep: *anyopaque, body: *Body, result: *Result, state: *State) replica.Handled_Status {
-                const repd: *replica.ReplicaType(
-                    system,
-                    AppState,
-                    &remote_services,
-                ) = @alignCast(@ptrCast(rep));
+                const repd: *Replica = @alignCast(@ptrCast(rep));
                 _ = result;
                 if (state.is_has_ran) {
                     return .done;
                 }
                 const add_message_id = repd.call_remote(
                     system_gateway,
-                    .login_server,
-                    system_gateway.operations.login_server.Body{
+                    .login,
+                    system_gateway.operations.login.Body{
                         .username = body.username,
                         .password = body.password,
                     },

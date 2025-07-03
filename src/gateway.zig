@@ -10,6 +10,7 @@ const uuid = @import("uuid.zig");
 const gateway = @import("systems/gateway/gateway.zig");
 const AppState = @import("systems/gateway/gateway.zig").AppState;
 const kv = @import("systems/kv/kv.zig");
+const shared = @import("shared.zig");
 
 pub const Replica = ReplicaZig.ReplicaType(
     gateway.system,
@@ -129,6 +130,7 @@ pub fn startKVServerClient(passed_client_db: *websocket.Client, replica: *Replic
                 const message_id = header.message_id;
                 std.debug.print("message id: {any}\n", .{message_id});
 
+                // TODO:
                 // route the reply to the corrent message based on the message id
                 // this needs to be able to interact with the replica
                 // this needs to be made thread safe
@@ -136,12 +138,19 @@ pub fn startKVServerClient(passed_client_db: *websocket.Client, replica: *Replic
                     if (value.is_fiber_waiting) {
                         replica.message_waiting_on_count[value.waiting_index] = replica.message_waiting_on_count[value.waiting_index] - 1;
                     }
-                    std.debug.assert(value.reply_size < @sizeOf(Operations.ResultType(kv.system, .login_client)) + 1);
-                    const casted_reply: *Operations.ResultType(kv.system, .login_client) = @alignCast(@ptrCast(&replica.messages_state[value.waiting_index][value.reply_offset]));
+                    //TODO: check that size of the data received matches the size of the data expected
+
+                    // std.debug.assert(value.reply_size < @sizeOf(Operations.ResultType(kv.system, header.operation)) + 1);
+                    // const casted_reply: *Operations.ResultType(kv.system, header.operation) = @alignCast(@ptrCast(&replica.messages_state[value.waiting_index][value.reply_offset]));
 
                     // casted_reply.* = buffer[@sizeOf(message_header.Header.Reply(kv.system))..header.size];
                     // @memcpy(casted_reply, buffer[@sizeOf(message_header.Header.Reply(kv.system))..header.size]);
-                    @memcpy(std.mem.asBytes(casted_reply), buffer[@sizeOf(message_header.Header.Reply(kv.system.Operation))..header.size]);
+                    // @memcpy(std.mem.asBytes(casted_reply), buffer[@sizeOf(message_header.Header.Reply(kv.system.Operation))..header.size]);
+                    @memcpy(
+                        replica.messages_state[value.waiting_index][value.reply_offset .. value.reply_offset + (header.size - @sizeOf(message_header.Header.Reply(kv.system.Operation)))],
+                        buffer[@sizeOf(message_header.Header.Reply(kv.system.Operation))..header.size],
+                    );
+
                     std.debug.print("got vk reply chcek\r\n", .{});
                 }
             },
@@ -203,8 +212,46 @@ fn index(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
     _ = req;
     std.debug.print("index \r\n", .{});
     res.status = 200;
+
+    const BufferSize = 50000;
+    // var buffer: [BufferSize]u8 = undefined; // fixed-size backing buffer
+
+    const slice_ptr = try res.arena.alloc(u8, BufferSize);
+    var fba2 = std.heap.FixedBufferAllocator.init(slice_ptr);
+
+    const allocator = fba2.allocator();
+
+    var writer = shared.BufferWriter.init(&allocator, BufferSize) catch {
+        return;
+    };
+
     const file_content = @embedFile("index.html");
-    res.body = file_content;
+    const parts = comptime shared.splitOnMarkers(file_content);
+
+    writer.set_lens();
+    writer.write_to_header("this is the header") catch {
+        return;
+    };
+
+    writer.set_lens();
+
+    writer.write_to_body(parts[0]) catch {
+        return;
+    };
+
+    writer.write_to_body(@embedFile("components/auth/signup.html")) catch {
+        return;
+    };
+
+    writer.write_to_body(parts[1]) catch {
+        return;
+    };
+
+    writer.set_lens();
+
+    // res.body = file_content;
+
+    res.body = writer.buffer[4 + writer.position_header .. writer.position_body];
 }
 
 fn wasm(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
