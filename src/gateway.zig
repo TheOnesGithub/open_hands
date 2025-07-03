@@ -51,6 +51,10 @@ var client_db: *websocket.Client = undefined;
 
 pub fn call_kv(ptr: [*]const u8, len: usize) void {
     std.debug.print("call kv in gateway\r\n", .{});
+    // print the message id
+    const header: *message_header.Header.Request(gateway.system.Operation) = @constCast(@ptrCast(@alignCast(ptr[0..len])));
+    const message_id = header.message_id;
+    std.debug.print("message id: {any}\n", .{message_id});
     client_db.writeBin(@constCast(ptr[0..len])) catch undefined;
 }
 
@@ -94,7 +98,22 @@ pub fn startKVServerClient(passed_client_db: *websocket.Client) !void {
 
         switch (message.type) {
             .text, .binary => {
-                std.debug.print("received from kv: {s}\n", .{message.data});
+                if (message.data.len < @sizeOf(message_header.Header.Reply(gateway.system.Operation))) {
+                    std.debug.print("recieved message is too small\n", .{});
+                    continue;
+                }
+
+                // copy the data to a buffer that is aligned
+                var buffer: [global_constants.message_size_max]u8 align(16) = undefined;
+                const temp = buffer[0..message.data.len];
+                @memcpy(temp, message.data);
+
+                std.debug.print("received from kv: {any}\n", .{message.data});
+                // cast data to a recieved header
+                const header: *message_header.Header.Reply(gateway.system.Operation) = @ptrCast(&buffer);
+                // get the message id
+                const message_id = header.message_id;
+                std.debug.print("message id: {any}\n", .{message_id});
             },
             .ping => try client_db.writePong(message.data),
             .pong => {},

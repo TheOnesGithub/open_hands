@@ -158,8 +158,9 @@ const Client = struct {
 
     // at this point, it's safe to write to conn
     pub fn afterInit(self: *Client) !void {
+        _ = self;
         std.debug.print("afetrInit\r\n", .{});
-        return self.conn.write("welcome!");
+        // return self.conn.write("welcome!");
     }
 
     pub fn clientMessage(self: *Client, data: []const u8) !void {
@@ -171,10 +172,6 @@ const Client = struct {
 
             @memcpy(temp, data);
 
-            // TODO: change the message id to a internal id
-            const recived_message: *message_header.Header.Request(kv.system.Operation) = @ptrCast(temp);
-            // save the client message id
-            const internal_message_id = uuid.UUID.v4();
             self.app.replica.app_state_data[fiber_index] = AppState{
                 .conn = self.conn,
             };
@@ -183,7 +180,6 @@ const Client = struct {
             //     .conn = self.conn,
             //     .only_return_body = false,
             // }) catch undefined;
-            recived_message.message_id = internal_message_id;
 
             self.app.replica.message_statuses[fiber_index] = .Ready;
             try self.app.replica.push(fiber_index);
