@@ -13,11 +13,6 @@ const message_header = @import("message_header.zig");
 const httpz = @import("httpz");
 const builtin = @import("builtin");
 
-const send = if (builtin.cpu.arch.isWasm())
-    @import("wasm.zig").send
-else
-    null;
-
 pub const Handled_Status = enum(u8) {
     done = 0,
     not_done = 1,
@@ -40,13 +35,21 @@ pub const Message_Request_Value = struct {
     reply_size: usize,
 };
 
+pub const RemoteService = struct {
+    service_type: type,
+    call: *const fn (ptr: [*]const u8, len: usize) void,
+};
+
 pub fn ReplicaType(
     comptime System: type,
+    comptime AppState: type,
+    comptime RemoteServices: anytype,
 ) type {
     return struct {
         const Replica = @This();
+        app_state_data: [global_constants.message_number_max]AppState = undefined,
 
-        temp_return: *const fn (uuid.UUID, []align(16) u8) void = undefined,
+        temp_return: *const fn (AppState, []align(16) u8) void = undefined,
         current_message: u32 = 1,
         messages: [global_constants.message_number_max][global_constants.message_size_max]u8 align(16) =
             undefined,
@@ -66,7 +69,7 @@ pub fn ReplicaType(
         top: usize = 0,
 
         const Options = struct {
-            temp_return: *const fn (uuid.UUID, []align(16) u8) void,
+            temp_return: *const fn (AppState, []align(16) u8) void,
         };
 
         pub fn push(self: *Replica, value: u32) !void {
@@ -212,7 +215,7 @@ pub fn ReplicaType(
                                         casted_reply.* = r.*;
                                         self.message_statuses[self.current_message] = .Available;
                                     } else {
-                                        self.temp_return(h_request.message_id, buffer[0..header_reply.size]);
+                                        self.temp_return(self.app_state_data[idx], buffer[0..header_reply.size]);
                                         // const ptr: [*]const u8 = @ptrCast(&buffer[0]);
                                         // self.temp_return(h_request.message_id, ptr[0..header_reply.size]);
                                     }
@@ -254,9 +257,11 @@ pub fn ReplicaType(
             ptr_as_int = ptr_as_int + header_size;
             const operation_struct: *Body = @ptrFromInt(ptr_as_int);
             operation_struct.* = body;
-            if (comptime builtin.cpu.arch.isWasm()) {
-                send(temp, buffer.len);
+
+            inline for (RemoteServices) |remote_service| {
+                remote_service.call(temp, buffer.len);
             }
+
             return message_id;
         }
 

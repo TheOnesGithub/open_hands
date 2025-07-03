@@ -3,6 +3,20 @@ const global_constants = @import("../../constants.zig");
 const replica = @import("../../replica.zig");
 const StackStringZig = @import("../../stack_string.zig");
 const system_gateway = @import("../gateway/gateway.zig").system;
+const send = @import("../../wasm.zig").send;
+
+pub const AppState = struct {};
+
+pub const remote_services = [_]replica.RemoteService{
+    .{
+        .service_type = @import("../../systems/gateway/gateway.zig").system,
+        .call = &call_gateway,
+    },
+};
+
+pub fn call_gateway(ptr: [*]const u8, len: usize) void {
+    send(ptr, len);
+}
 
 // todo: make a better name
 pub const system = struct {
@@ -24,6 +38,8 @@ pub const system = struct {
             pub fn call(rep: *anyopaque, body: *Body, result: *Result, state: *State) replica.Handled_Status {
                 const repd: *replica.ReplicaType(
                     system,
+                    AppState,
+                    &remote_services,
                 ) = @alignCast(@ptrCast(rep));
                 _ = result;
                 if (state.is_has_ran) {

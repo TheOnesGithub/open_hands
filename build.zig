@@ -4,22 +4,10 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // Native build
-    const native_exe = b.addExecutable(.{
-        .name = "native",
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    native_exe.rdynamic = false; // Default
-    //
     const httpz = b.dependency("httpz", .{
         .target = target,
         .optimize = optimize,
     });
-
-    // the executable from your call to b.addExecutable(...)
-    native_exe.root_module.addImport("httpz", httpz.module("httpz"));
 
     const lmdb_dep = b.dependency("lmdb", .{
         .target = target,
@@ -27,10 +15,32 @@ pub fn build(b: *std.Build) void {
     });
     const lmdb = lmdb_dep.module("lmdb");
 
-    native_exe.root_module.addImport("lmdb", lmdb);
-    native_exe.linkSystemLibrary("c");
+    // Native build
+    const gateway_exe = b.addExecutable(.{
+        .name = "gateway",
+        .root_source_file = b.path("src/gateway.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    gateway_exe.rdynamic = false; // Default
 
-    b.installArtifact(native_exe);
+    gateway_exe.root_module.addImport("httpz", httpz.module("httpz"));
+    gateway_exe.root_module.addImport("lmdb", lmdb);
+    gateway_exe.linkSystemLibrary("c");
+    b.installArtifact(gateway_exe);
+
+    const kv_exe = b.addExecutable(.{
+        .name = "kv",
+        .root_source_file = b.path("src/kv.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    kv_exe.rdynamic = false;
+
+    kv_exe.root_module.addImport("httpz", httpz.module("httpz"));
+    kv_exe.root_module.addImport("lmdb", lmdb);
+    kv_exe.linkSystemLibrary("c");
+    b.installArtifact(kv_exe);
 
     // WASM build
     const wasm_target = b.resolveTargetQuery(.{
@@ -78,7 +88,8 @@ pub fn build(b: *std.Build) void {
     for (wasm_targets.items) |install_step| {
         wasm_group.dependOn(install_step);
     }
-    native_exe.step.dependOn(wasm_group);
+    gateway_exe.step.dependOn(wasm_group);
+    kv_exe.step.dependOn(wasm_group);
 }
 
 fn sanitizeName(allocator: std.mem.Allocator, name: []const u8) ![]u8 {

@@ -6,8 +6,13 @@ const message_header = @import("message_header.zig");
 pub const ReplicaZig = @import("replica.zig");
 pub const client = @import("systems/client/client.zig");
 const Operations = @import("operations.zig");
+const AppState = @import("systems/client/client.zig").AppState;
 
-pub const Replica = ReplicaZig.ReplicaType(client.system);
+pub const Replica = ReplicaZig.ReplicaType(
+    client.system,
+    AppState,
+    &client.remote_services,
+);
 
 const allocator = std.heap.wasm_allocator;
 
@@ -93,8 +98,8 @@ export fn login(
 
 const Operation = @import("operations.zig").Operation;
 
-fn temp_return(message_id: uuid.UUID, message: []align(16) u8) void {
-    _ = message_id;
+fn temp_return(app_state: AppState, message: []align(16) u8) void {
+    _ = app_state;
     _ = message;
     // send(message.ptr, message.len);
 }
