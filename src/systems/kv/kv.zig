@@ -133,7 +133,8 @@ pub fn SystemType(comptime SystemDataType: type) type {
                     _ = rep;
                     _ = state;
                     _ = result;
-                    std.debug.print("login client kv\r\n", .{});
+                    std.debug.print("login client attempt: {} - {}\r\n", .{ body.*.username, body.*.password });
+
                     const txn = lmdb.Transaction.init(self.system_data.*, .{ .mode = .ReadWrite }) catch |err| {
                         std.debug.print("failed to init transaction: {s}\r\n", .{@errorName(err)});
                         return .done;
@@ -160,6 +161,11 @@ pub fn SystemType(comptime SystemDataType: type) type {
                     } else {
                         std.debug.print("user not found\r\n", .{});
                     }
+
+                    txn.commit() catch |err| {
+                        std.debug.print("failed to commit transaction: {s}\r\n", .{@errorName(err)});
+                        return .done;
+                    };
 
                     return .done;
                 }

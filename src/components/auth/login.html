@@ -1,4 +1,4 @@
-  <div class="bg-white shadow-md rounded-lg p-8 w-full max-w-sm">
+  <div id="container-login" class="bg-white shadow-md rounded-lg p-8 w-full max-w-sm">
     <h2 class="text-2xl font-bold mb-6 text-center">Log In</h2>
     <form id="login-form" class="space-y-4">
       <div class="space-y-1">
@@ -38,9 +38,15 @@
         Log In
       </button>
     </form>
+
+    <div class="mt-4 text-center">
+      <button hx-get="/signup" hx-target="#container-login" hx-swap="outerHTML" class="text-blue-500 hover:underline">Signup</button>
+    </div>
+
   </div>
 
 <script>
+  {
       const form = document.getElementById("login-form");
       form.addEventListener("submit", (e) => {
         e.preventDefault();
@@ -63,6 +69,7 @@
         wasm.free(usernamePtr, usernameBytes.length);
         wasm.free(passwordPtr, passwordBytes.length);
       });
+  }
 </script>
 
 

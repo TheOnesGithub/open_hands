@@ -1,4 +1,4 @@
-<div class="bg-white shadow-md rounded-lg p-8 w-full max-w-sm">
+<div id="container-signup" class="bg-white shadow-md rounded-lg p-8 w-full max-w-sm">
   <h2 class="text-2xl font-bold mb-6 text-center">Sign Up</h2>
   <form id="signup-form" class="space-y-4">
     <div class="space-y-1">
@@ -68,8 +68,12 @@
       Sign Up
     </button>
   </form>
+  <div class="mt-4 text-center">
+    <button hx-get="/login" hx-target="#container-signup" hx-swap="outerHTML" class="text-blue-500 hover:underline">Already have an account? Login</button>
+  </div>
 </div>
 <script>
+{
       const form = document.getElementById("signup-form");
       form.addEventListener("submit", (e) => {
         e.preventDefault();
@@ -108,4 +112,5 @@
         wasm.free(emailPtr, emailBytes.length);
         wasm.free(passwordPtr, passwordBytes.length);
       });
+}
 </script>

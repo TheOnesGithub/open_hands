@@ -204,6 +204,8 @@ pub fn start() !void {
     router.get("/", index, .{});
     router.get("/wasm.wasm", wasm, .{});
     router.get("/ws", ws, .{});
+    router.get("/signup", signup, .{});
+    router.get("/login", login, .{});
 
     server.listen() catch {
         return;
@@ -212,7 +214,6 @@ pub fn start() !void {
 
 fn index(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
     _ = app;
-    _ = req;
     std.debug.print("index \r\n", .{});
     res.status = 200;
 
@@ -228,6 +229,30 @@ fn index(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
         return;
     };
 
+    writer.set_lens();
+    writer.write_to_header("this is the header") catch {
+        return;
+    };
+
+    writer.set_lens();
+
+    if (req.header("HX-Request")) |header| {
+        _ = header;
+        login_callback(&writer);
+    } else {
+        base(&writer, login_callback) catch {
+            return;
+        };
+    }
+
+    writer.set_lens();
+
+    // res.body = file_content;
+
+    res.body = writer.buffer[4 + writer.position_header .. writer.position_body];
+}
+
+fn base(writer: *shared.BufferWriter, content_callback: fn (*shared.BufferWriter) void) !void {
     const file_content = @embedFile("index.html");
     const parts = comptime shared.splitOnMarkers(file_content);
 
@@ -242,9 +267,11 @@ fn index(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
         return;
     };
 
-    writer.write_to_body(@embedFile("components/auth/login.html")) catch {
-        return;
-    };
+    // writer.write_to_body(@embedFile("components/auth/login.html")) catch {
+    //     return;
+    // };
+
+    content_callback(writer);
 
     writer.write_to_body(parts[1]) catch {
         return;
@@ -254,9 +281,101 @@ fn index(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
 
     // res.body = file_content;
 
+}
+
+fn signup_callback(writer: *shared.BufferWriter) void {
+    writer.write_to_body(@embedFile("components/auth/signup.html")) catch {
+        return;
+    };
+    writer.set_lens();
+}
+
+fn signup(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
+    _ = app;
+    std.debug.print("index \r\n", .{});
+    res.status = 200;
+
+    const BufferSize = 50000;
+    // var buffer: [BufferSize]u8 = undefined; // fixed-size backing buffer
+
+    const slice_ptr = try res.arena.alloc(u8, BufferSize);
+    var fba2 = std.heap.FixedBufferAllocator.init(slice_ptr);
+
+    const allocator = fba2.allocator();
+
+    var writer = shared.BufferWriter.init(&allocator, BufferSize) catch {
+        return;
+    };
+
+    writer.set_lens();
+    writer.write_to_header("this is the header") catch {
+        return;
+    };
+
+    writer.set_lens();
+
+    if (req.header("HX-Request")) |header| {
+        _ = header;
+        signup_callback(&writer);
+    } else {
+        base(&writer, signup_callback) catch {
+            return;
+        };
+    }
+
+    writer.set_lens();
+
+    // res.body = file_content;
+
     res.body = writer.buffer[4 + writer.position_header .. writer.position_body];
 }
 
+fn login_callback(writer: *shared.BufferWriter) void {
+    writer.write_to_body(@embedFile("components/auth/login.html")) catch {
+        return;
+    };
+    writer.set_lens();
+}
+
+fn login(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
+    _ = app;
+    std.debug.print("index \r\n", .{});
+    res.status = 200;
+
+    const BufferSize = 50000;
+    // var buffer: [BufferSize]u8 = undefined; // fixed-size backing buffer
+
+    const slice_ptr = try res.arena.alloc(u8, BufferSize);
+    var fba2 = std.heap.FixedBufferAllocator.init(slice_ptr);
+
+    const allocator = fba2.allocator();
+
+    var writer = shared.BufferWriter.init(&allocator, BufferSize) catch {
+        return;
+    };
+
+    writer.set_lens();
+    writer.write_to_header("this is the header") catch {
+        return;
+    };
+
+    writer.set_lens();
+
+    if (req.header("HX-Request")) |header| {
+        _ = header;
+        login_callback(&writer);
+    } else {
+        base(&writer, login_callback) catch {
+            return;
+        };
+    }
+
+    writer.set_lens();
+
+    // res.body = file_content;
+
+    res.body = writer.buffer[4 + writer.position_header .. writer.position_body];
+}
 fn wasm(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
     _ = app;
     _ = req;
