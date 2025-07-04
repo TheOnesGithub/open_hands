@@ -242,7 +242,7 @@ fn index(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
         return;
     };
 
-    writer.write_to_body(@embedFile("components/auth/signup.html")) catch {
+    writer.write_to_body(@embedFile("components/auth/login.html")) catch {
         return;
     };
 
