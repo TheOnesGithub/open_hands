@@ -236,7 +236,7 @@ fn index(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
 
     writer.set_lens();
 
-    if (req.header("HX-Request")) |header| {
+    if (req.header("hx-request")) |header| {
         _ = header;
         login_callback(&writer);
     } else {
@@ -314,10 +314,12 @@ fn signup(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
 
     writer.set_lens();
 
-    if (req.header("HX-Request")) |header| {
+    if (req.header("hx-request")) |header| {
         _ = header;
+        std.debug.print("got header request\r\n", .{});
         signup_callback(&writer);
     } else {
+        std.debug.print("no header request\r\n", .{});
         base(&writer, signup_callback) catch {
             return;
         };
@@ -361,7 +363,7 @@ fn login(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
 
     writer.set_lens();
 
-    if (req.header("HX-Request")) |header| {
+    if (req.header("hx-request")) |header| {
         _ = header;
         login_callback(&writer);
     } else {
