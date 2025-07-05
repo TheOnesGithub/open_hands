@@ -71,7 +71,7 @@ pub fn SystemType() type {
 
             pub const login_client = struct {
                 pub const Body = struct {
-                    username: StackStringZig.StackString(global_constants.MAX_USERNAME_LENGTH),
+                    email: StackStringZig.StackString(global_constants.MAX_EMAIL_LENGTH),
                     password: StackStringZig.StackString(global_constants.MAX_PASSWORD_LENGTH),
                 };
                 pub const Result = struct {};
@@ -90,7 +90,7 @@ pub fn SystemType() type {
                         system_gateway,
                         .login,
                         system_gateway.operations.login.Body{
-                            .username = body.username,
+                            .email = body.email,
                             .password = body.password,
                         },
                         &state.login_result,
