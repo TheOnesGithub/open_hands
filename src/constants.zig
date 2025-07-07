@@ -3,9 +3,9 @@ const uuid = @import("uuid.zig");
 
 pub const operations_reserved: u8 = 128;
 
-pub const message_size_max = 1024 * 4;
+pub const message_size_max = 1024 * 1024 * 26;
 pub const message_body_size_max = message_size_max - @sizeOf(Header);
-pub const message_number_max = 1024;
+pub const message_number_max = 8;
 pub const message_wait_on_map_buffer_size = message_number_max * @sizeOf(uuid.UUID);
 
 pub const StateMachineConfig = struct {
@@ -26,5 +26,5 @@ pub const MAX_PASSWORD_LENGTH = 64;
 pub const max_display_name_length = 64;
 pub const PASSWORD_HASH_LENGTH = 128;
 
-pub const max_key_length = 64; //512;
+pub const max_key_length = 512;
 pub const max_value_length = 256; //1024 * 1024 * 25;

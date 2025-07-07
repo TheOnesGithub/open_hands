@@ -58,12 +58,18 @@
         }
     }
 
+    // Print a utf8 string from the Wasm memory buffer
+function print_wasm(ptr, len) {
+        const array = new Uint8Array(memory.buffer, ptr, len);
+        console.log("Printing string:", array);
+}
 
     async function initWasm() {
     const importObject = {
       env: {
         notify_timer_change: updateTimerUI,
         send: send,
+                print_wasm: print_wasm,
         import_random_bytes: (bufferAddress, length) => {
                 // Get a view of the Wasm memory buffer as a Uint8Array
                 const memoryBuffer = new Uint8Array(memory.buffer);

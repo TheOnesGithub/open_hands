@@ -12,14 +12,10 @@ const AppState = @import("systems/gateway/gateway.zig").AppState;
 const kv = @import("systems/kv/kv.zig");
 const shared = @import("shared.zig");
 
-pub const Replica = ReplicaZig.ReplicaType(
-    gateway.system,
-    AppState,
-    &gateway.remote_services,
-);
-
+pub const Replica = gateway.Replica;
 const AutoHashMap = std.AutoHashMap;
 const FixedBufferAllocator = std.heap.FixedBufferAllocator;
+const StackStringZig = @import("stack_string.zig");
 
 var message_id_buffer: [global_constants.message_wait_on_map_buffer_size]u8 = undefined;
 // var message_id_map: AutoHashMap(uuid.UUID, Message_Request_Value) = undefined;
@@ -43,12 +39,32 @@ pub fn main() !void {
 
 pub fn replica_start(replica: *Replica) void {
     // backoff in nothing is ran
+    std.debug.print("replica start\r\n", .{});
     var backoff: u64 = 0;
+
+    const allocator = std.heap.page_allocator;
+    var buffer = allocator.alloc(
+        u8,
+        global_constants.message_size_max,
+    ) catch |err| {
+        std.debug.print("failed to allocate buffer: {s}\r\n", .{@errorName(err)});
+        return;
+    };
+    defer allocator.free(buffer);
+
+    if (@intFromPtr(buffer.ptr) % 16 == 0) {
+        buffer = @alignCast((buffer));
+    } else {
+        // buffer = @ptrFromInt(@intFromPtr(buffer.ptr) + (16 - (@intFromPtr(buffer.ptr) % 16)));
+        buffer = @alignCast(buffer[(16 - (@intFromPtr(buffer.ptr) % 16))..]);
+    }
+
     while (true) {
-        if (replica.tick()) {
-            std.debug.print("backoff: {}\r\n", .{backoff});
+        // std.debug.print("start loop\r\n", .{});
+        if (replica.tick(@alignCast(@ptrCast(buffer)))) {
             backoff = 0;
         } else {
+            // std.debug.print("backoff: {}\r\n", .{backoff});
             backoff += 10;
             if (backoff > 10) {
                 // sleep based on the backoff
@@ -119,7 +135,7 @@ pub fn startKVServerClient(passed_client_db: *websocket.Client, replica: *Replic
                 }
 
                 // copy the data to a buffer that is aligned
-                var buffer: [global_constants.message_size_max]u8 align(16) = undefined;
+                var buffer: [1024 * 4]u8 align(16) = undefined;
                 const temp = buffer[0..message.data.len];
                 @memcpy(temp, message.data);
 
@@ -165,10 +181,16 @@ pub fn startKVServerClient(passed_client_db: *websocket.Client, replica: *Replic
 }
 
 pub fn start() !void {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    const allocator = arena.allocator();
+
     var app = App{};
 
     var system_instance: gateway.system = gateway.system{};
     try app.replica.init(
+        allocator,
         &system_instance,
         .{ .temp_return = &temp_return },
     );
@@ -214,6 +236,47 @@ pub fn start() !void {
 
 fn index(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
     _ = app;
+
+    // if (app.replica.resurveAvailableFiber()) |fiber_index| {
+    //     const temp = &app.replica.messages[fiber_index][0];
+    //     const t2: *message_header.Header.Request(gateway.system) = @alignCast(@ptrCast(temp));
+    //     t2.* = message_header.Header.Request(gateway.system){
+    //         .request = 0,
+    //         .command = .request,
+    //         .client = 0,
+    //         .operation = .signup,
+    //         .cluster = 0,
+    //         .release = 0,
+    //         .message_id = uuid.UUID.v4(),
+    //     };
+    //     const header_size = @sizeOf(message_header.Header.Request(gateway.system));
+    //     const Body = Operations.BodyType(gateway.system, .signup);
+    //     var ptr_as_int = @intFromPtr(temp);
+    //     ptr_as_int = ptr_as_int + header_size;
+    //     const operation_struct: *Body = @ptrFromInt(ptr_as_int);
+    //     operation_struct.username = StackStringZig.StackString(u8, global_constants.MAX_USERNAME_LENGTH).init("username");
+    //     operation_struct.email = StackStringZig.StackString(u8, global_constants.MAX_EMAIL_LENGTH).init("email@email.com");
+    //     operation_struct.password = StackStringZig.StackString(u8, global_constants.MAX_PASSWORD_LENGTH).init("password");
+    //
+    //     const internal_message_id = uuid.UUID.v4();
+    //
+    //     app.replica.app_state_data[fiber_index] = AppState{
+    //         .client_message_id = t2.message_id,
+    //         .conn = undefined, //self.conn,
+    //         .only_return_body = false,
+    //     };
+    //
+    //     // message_id_map.put(internal_message_id, Message_Request_Value{
+    //     //     .client_message_id = recived_message.message_id,
+    //     //     .conn = self.conn,
+    //     //     .only_return_body = false,
+    //     // }) catch undefined;
+    //     t2.message_id = internal_message_id;
+    //
+    //     app.replica.message_statuses[fiber_index] = .Ready;
+    //     app.replica.push(fiber_index) catch undefined;
+    // }
+
     std.debug.print("index \r\n", .{});
     res.status = 200;
 
@@ -452,7 +515,7 @@ const Client = struct {
             @memcpy(temp, data);
 
             // TODO: change the message id to a internal id
-            const recived_message: *message_header.Header.Request(gateway.system) = @ptrCast(temp);
+            const recived_message: *message_header.Header.Request(gateway.system) = @alignCast(@ptrCast(temp));
             // save the client message id
             const internal_message_id = uuid.UUID.v4();
             self.app.replica.app_state_data[fiber_index] = AppState{

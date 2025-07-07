@@ -44,28 +44,32 @@ pub fn ReplicaType(
     comptime System: type,
     comptime AppState: type,
     comptime RemoteServices: anytype,
+    comptime message_number_max: usize,
+    comptime message_size_max: usize,
 ) type {
     return struct {
         const Replica = @This();
+
         system: *System = undefined,
-        app_state_data: [global_constants.message_number_max]AppState = undefined,
+        app_state_data: [message_number_max]AppState = undefined,
 
         temp_return: *const fn (AppState, []align(16) u8) void = undefined,
         current_message: u32 = 1,
-        messages: [global_constants.message_number_max][global_constants.message_size_max]u8 align(16) =
+        messages: *[message_number_max][message_size_max]u8 =
             undefined,
-        message_ids: [global_constants.message_number_max]uuid.UUID =
+        message_ids: [message_number_max]uuid.UUID =
             undefined,
-        messages_state: [global_constants.message_number_max][global_constants.message_size_max]u8 align(16) =
+        messages_state: *[message_number_max][message_size_max]u8 =
             undefined,
-        message_statuses: [global_constants.message_number_max]Message_Status =
-            [_]Message_Status{.Available} ** global_constants.message_number_max,
-        message_indexs: [global_constants.message_number_max]u32 = undefined,
-        message_waiting_on_count: [global_constants.message_number_max]u8 = [_]u8{0} ** global_constants.message_number_max,
+        message_statuses: [message_number_max]Message_Status =
+            [_]Message_Status{.Available} ** message_number_max,
+        message_indexs: [message_number_max]u32 = undefined,
+        message_waiting_on_count: [message_number_max]u8 = [_]u8{0} ** message_number_max,
 
         message_wait_on_map_buffer: [global_constants.message_wait_on_map_buffer_size]u8 = undefined,
         message_wait_on_map: AutoHashMap(uuid.UUID, Message_Request_Value) = undefined,
         fba: std.heap.FixedBufferAllocator = undefined,
+        remote_request_buffer: *[message_size_max]u8 = undefined,
 
         top: usize = 0,
 
@@ -74,7 +78,7 @@ pub fn ReplicaType(
         };
 
         pub fn push(self: *Replica, value: u32) !void {
-            if (self.top < global_constants.message_number_max) {
+            if (self.top < message_number_max) {
                 self.message_indexs[self.top] = value;
                 self.top += 1;
             } else {
@@ -92,6 +96,7 @@ pub fn ReplicaType(
         }
 
         pub fn resurveAvailableFiber(self: *Replica) ?u32 {
+
             // self.stack.mutex.lock();
             if (self.findAvailableFiber()) |fiber_index| {
                 self.message_statuses[fiber_index] = .Reserved;
@@ -105,18 +110,33 @@ pub fn ReplicaType(
 
         pub fn init(
             self: *Replica,
-            // allocator: Allocator,
+            allocator: Allocator,
             system: *System,
             options: Options,
         ) !void {
-            // try self.state_machine.init(
-            //     // allocator,
-            //     // &self.grid,
-            //     options.state_machine_options,
-            // );
-            //
-            // errdefer self.state_machine.deinit();
-            // errdefer self.state_machine.deinit(allocator);
+            // const messages = try allocator.alignedAlloc([]u8, 16, global_constants.message_number_max);
+            const messages = try allocator.alignedAlloc(
+                [message_size_max]u8,
+                16,
+                message_number_max,
+            );
+
+            const messages_state = try allocator.alignedAlloc(
+                [message_size_max]u8,
+                16,
+                message_number_max,
+            );
+
+            const remote_request_buffer = try allocator.alignedAlloc(
+                u8,
+                16,
+                message_size_max,
+            );
+
+            // Allocate each message buffer
+            // for (messages, message_buffers) |*msg, *buffer| {
+            //     msg.* = buffer;
+            // }
 
             self.fba = FixedBufferAllocator.init(&self.message_wait_on_map_buffer);
             const fixed_buffer_allocator = self.fba.allocator();
@@ -129,28 +149,34 @@ pub fn ReplicaType(
                 .message_indexs = self.message_indexs,
                 .message_statuses = self.message_statuses,
                 .message_waiting_on_count = self.message_waiting_on_count,
-                .messages = self.messages,
+                .messages = @ptrCast(messages.ptr),
                 .message_ids = self.message_ids,
-                .messages_state = self.messages_state,
+                .messages_state = @ptrCast(messages_state.ptr),
                 .top = 0,
                 .message_wait_on_map = self.message_wait_on_map,
                 .message_wait_on_map_buffer = self.message_wait_on_map_buffer,
                 .fba = self.fba,
+                .remote_request_buffer = @ptrCast(remote_request_buffer.ptr),
             };
+
+            std.debug.assert(@intFromPtr(self.remote_request_buffer) % 16 == 0);
         }
 
         /// Free all memory and unref all messages held by the replica.
         /// This does not deinitialize the Storage or Time.
         pub fn deinit(
             self: *Replica,
-            // allocator: Allocator,
+            allocator: Allocator,
         ) void {
             _ = self;
-            // self.state_machine.deinit(allocator);
+            _ = allocator;
         }
 
         // return true if a message was processed
-        pub fn tick(self: *Replica) bool {
+        pub fn tick(self: *Replica, buffer: *align(16) [message_size_max]u8) bool {
+            if (!builtin.cpu.arch.isWasm()) {
+                // std.debug.print("r tick\r\n", .{});
+            }
             var i: usize = self.top;
             var processed: bool = false;
             while (i > 0) {
@@ -167,17 +193,17 @@ pub fn ReplicaType(
 
                     self.current_message = idx;
                     var hs: Handled_Status = undefined;
-                    const h: *message_header.Header = @ptrCast(&self.messages[idx][0]);
+                    const h: *message_header.Header = @ptrCast(@alignCast(&self.messages[idx]));
                     if (h.command == .request) {
                         const h_request: *message_header.Header.Request(System) = @ptrCast(h);
                         if (comptime !builtin.cpu.arch.isWasm()) {
                             std.debug.print("got tick message id: {}\r\n", .{h_request.message_id});
                         }
+                        // var buffer: [global_constants.message_size_max]u8 align(16) = undefined;
                         inline for (std.meta.fields(System.Operation)) |field| {
                             const op_enum_value = @field(System.Operation, field.name);
                             if (h_request.operation == op_enum_value) {
-                                var buffer: [global_constants.message_size_max]u8 align(16) = undefined;
-                                const temp = &buffer;
+                                const temp = buffer;
                                 const header_reply: *message_header.Header.Reply(System) = @ptrCast(@constCast(temp));
                                 header_reply.* = message_header.Header.Reply(System){
                                     .request = 0,
@@ -199,9 +225,9 @@ pub fn ReplicaType(
                                 header_reply.size = @sizeOf(Result) + @sizeOf(message_header.Header.Reply(System));
                                 hs = self.execute(
                                     op_enum_value,
-                                    &self.messages[idx],
+                                    @alignCast(&self.messages[idx]),
                                     @constCast(r),
-                                    &self.messages_state[idx],
+                                    @alignCast(&self.messages_state[idx]),
                                 );
 
                                 if (hs == .not_done) {
@@ -247,8 +273,12 @@ pub fn ReplicaType(
             body: Operations.BodyType(Remote_Operations, operation),
             reply: *Operations.ResultType(Remote_Operations, operation),
         ) uuid.UUID {
+            if (comptime !builtin.cpu.arch.isWasm()) {
+                std.debug.print("in replica call remote \r\n", .{});
+            }
+
             const reply_offset = @intFromPtr(reply) - @intFromPtr(&self.messages_state[self.current_message][0]);
-            std.debug.assert(reply_offset < global_constants.message_body_size_max);
+            std.debug.assert(reply_offset < (message_size_max - @sizeOf(message_header.Header.Reply(Remote_Operations))));
 
             const message_id = uuid.UUID.v4();
             const message_request_value = Message_Request_Value{
@@ -261,11 +291,27 @@ pub fn ReplicaType(
                 std.debug.print("putting message id in map: {}\r\n", .{message_id});
             }
             self.message_wait_on_map.put(message_id, message_request_value) catch undefined;
+            if (comptime !builtin.cpu.arch.isWasm()) {
+                std.debug.print("in replica call remote 2\r\n", .{});
+            }
 
-            var buffer: [global_constants.message_size_max]u8 align(16) = undefined;
-            const temp = &buffer;
+            // var buffer: [global_constants.message_size_max]u8 align(16) = undefined;
+            // const temp = &buffer;
+            // const temp = self.fba.allocator().alignedAlloc(u8, 16, message_size_max) catch |err| {
+            //     if (comptime !builtin.cpu.arch.isWasm()) {
+            //         std.debug.print("in replica call remote 4\r\n", .{});
+            //         std.debug.print("failed to allocate buffer of size: {} error: {}\r\n", .{ message_size_max, err });
+            //     }
+            //     return message_id;
+            // };
+            // defer self.fba.allocator().free(temp);
+            if (comptime !builtin.cpu.arch.isWasm()) {
+                std.debug.print("in replica call remote 3\r\n", .{});
+            }
+
+            std.debug.assert(@intFromPtr(self.remote_request_buffer) % 16 == 0);
             // const temp = &self.messages[fiber_index][0];
-            const t2: *message_header.Header.Request(Remote_Operations) = @ptrCast(@constCast(temp));
+            const t2: *message_header.Header.Request(Remote_Operations) = @alignCast(@ptrCast(@constCast(self.remote_request_buffer)));
             t2.* = message_header.Header.Request(Remote_Operations){
                 .request = 0,
                 .command = .request,
@@ -277,14 +323,17 @@ pub fn ReplicaType(
             };
             const header_size = @sizeOf(message_header.Header.Request(Remote_Operations));
             const Body = Operations.BodyType(Remote_Operations, operation);
-            var ptr_as_int = @intFromPtr(temp);
+            var ptr_as_int = @intFromPtr(self.remote_request_buffer);
             ptr_as_int = ptr_as_int + header_size;
             const operation_struct: *Body = @ptrFromInt(ptr_as_int);
             operation_struct.* = body;
 
+            if (comptime !builtin.cpu.arch.isWasm()) {
+                std.debug.print("call remote before inline\r\n", .{});
+            }
             inline for (RemoteServices) |remote_service| {
                 if (remote_service.service_type == Remote_Operations) {
-                    remote_service.call(temp, buffer.len);
+                    remote_service.call(@constCast(@ptrCast(self.remote_request_buffer)), message_size_max);
                 }
             }
 
@@ -298,7 +347,7 @@ pub fn ReplicaType(
             reply: *Operations.ResultType(System, operation),
         ) uuid.UUID {
             const reply_offset = @intFromPtr(reply) - @intFromPtr(&self.messages_state[self.current_message][0]);
-            std.debug.assert(reply_offset < global_constants.message_body_size_max);
+            std.debug.assert(reply_offset < (message_size_max - @sizeOf(message_header.Header.Reply(System))));
 
             const message_id = uuid.UUID.v4();
             const message_request_value = Message_Request_Value{
@@ -351,9 +400,9 @@ pub fn ReplicaType(
         pub fn execute(
             self: *Replica,
             comptime operation: System.Operation,
-            message_body_used: *align(16) [global_constants.message_body_size_max]u8,
+            message_body_used: *align(16) [message_size_max]u8,
             res: *Operations.ResultType(System, operation),
-            message_state: *align(16) [global_constants.message_body_size_max]u8,
+            message_state: *align(16) [message_size_max]u8,
         ) Handled_Status {
             // _ = self;
             // comptime assert(!operation_is_multi_batch(operation));

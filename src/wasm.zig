@@ -8,17 +8,13 @@ pub const client = @import("systems/client/client.zig");
 const Operations = @import("operations.zig");
 const AppState = @import("systems/client/client.zig").AppState;
 
-pub const Replica = ReplicaZig.ReplicaType(
-    client.system,
-    AppState,
-    &client.remote_services,
-);
-
 const allocator = std.heap.wasm_allocator;
 
-var replica: Replica = undefined;
+var replica: client.Replica = undefined;
 
 pub extern fn send(ptr: [*]const u8, len: usize) void;
+
+pub extern fn print_wasm(ptr: [*]const u8, len: usize) void;
 
 fn handle_network_reply(message_id: uuid.UUID, buffer_ptr: [*]u8) void {
     _ = buffer_ptr;
@@ -26,9 +22,36 @@ fn handle_network_reply(message_id: uuid.UUID, buffer_ptr: [*]u8) void {
 }
 
 var system_instance: client.system = client.system{};
+var buffer: *align(16) [1024 * 4]u8 = undefined;
 
 pub export fn init() void {
-    replica.init(&system_instance, .{ .temp_return = &temp_return }) catch undefined;
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+
+    const allocator2 = arena.allocator();
+
+    replica.init(
+        allocator2,
+        &system_instance,
+        .{ .temp_return = &temp_return },
+    ) catch undefined;
+
+    const temp_buffer = allocator.alloc(
+        u8,
+        (1024 * 4) + 16,
+    ) catch {
+        return;
+    };
+    // defer allocator.free(buffer);
+
+    if (@intFromPtr(temp_buffer.ptr) % 16 == 0) {
+        buffer = @ptrCast(@alignCast((temp_buffer.ptr)));
+    } else {
+        // buffer = @ptrFromInt(@intFromPtr(buffer.ptr) + (16 - (@intFromPtr(buffer.ptr) % 16)));
+        buffer = @ptrCast(@alignCast(temp_buffer[(16 - (@intFromPtr(temp_buffer.ptr) % 16))..]));
+    }
+
+    std.debug.assert(@intFromPtr(buffer.ptr) % 16 == 0);
 }
 
 pub export fn alloc(size: usize) ?[*]u8 {
@@ -43,7 +66,7 @@ pub export fn free(ptr: [*]u8, len: usize) void {
 }
 
 pub export fn tick() void {
-    _ = replica.tick();
+    _ = replica.tick(buffer);
 }
 
 pub export fn signup(
@@ -68,13 +91,13 @@ pub export fn signup(
     const email_str = email_ptr[0..email_len];
     const password_str = password_ptr[0..password_len];
 
-    const username = stack_string.StackString(global_constants.MAX_USERNAME_LENGTH).init(username_str);
-    const email = stack_string.StackString(global_constants.MAX_EMAIL_LENGTH).init(email_str);
-    const password = stack_string.StackString(global_constants.MAX_PASSWORD_LENGTH).init(password_str);
+    const username = stack_string.StackString(u8, global_constants.MAX_USERNAME_LENGTH).init(username_str);
+    const email = stack_string.StackString(u8, global_constants.MAX_EMAIL_LENGTH).init(email_str);
+    const password = stack_string.StackString(u8, global_constants.MAX_PASSWORD_LENGTH).init(password_str);
 
     if (replica.resurveAvailableFiber()) |fiber_index| {
         const temp = &replica.messages[fiber_index][0];
-        const t2: *message_header.Header.Request(client.system) = @ptrCast(temp);
+        const t2: *message_header.Header.Request(client.system) = @constCast(@alignCast(@ptrCast(temp)));
         t2.* = message_header.Header.Request(client.system){
             .request = 0,
             .command = .request,
@@ -114,8 +137,8 @@ export fn login(
     const email_str = email_ptr[0..email_len];
     const password_str = password_ptr[0..password_len];
 
-    const email = stack_string.StackString(global_constants.MAX_EMAIL_LENGTH).init(email_str);
-    const password = stack_string.StackString(global_constants.MAX_PASSWORD_LENGTH).init(password_str);
+    const email = stack_string.StackString(u8, global_constants.MAX_EMAIL_LENGTH).init(email_str);
+    const password = stack_string.StackString(u8, global_constants.MAX_PASSWORD_LENGTH).init(password_str);
 
     // add it to the state machine so on call back it can route it?
 
@@ -125,7 +148,7 @@ export fn login(
 
     if (replica.resurveAvailableFiber()) |fiber_index| {
         const temp = &replica.messages[fiber_index][0];
-        const t2: *message_header.Header.Request(client.system) = @ptrCast(temp);
+        const t2: *message_header.Header.Request(client.system) = @constCast(@alignCast(@ptrCast(temp)));
         t2.* = message_header.Header.Request(client.system){
             .request = 0,
             .command = .request,

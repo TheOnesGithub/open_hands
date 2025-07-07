@@ -36,12 +36,32 @@ pub fn main() !void {
 
 pub fn replica_start(replica: *kv.Replica) void {
     // backoff in nothing is ran
+    std.debug.print("replica start\r\n", .{});
     var backoff: u64 = 0;
+
+    const allocator = std.heap.page_allocator;
+    var buffer = allocator.alloc(
+        u8,
+        global_constants.message_size_max,
+    ) catch |err| {
+        std.debug.print("failed to allocate buffer: {s}\r\n", .{@errorName(err)});
+        return;
+    };
+    defer allocator.free(buffer);
+
+    if (@intFromPtr(buffer.ptr) % 16 == 0) {
+        buffer = @alignCast((buffer));
+    } else {
+        // buffer = @ptrFromInt(@intFromPtr(buffer.ptr) + (16 - (@intFromPtr(buffer.ptr) % 16)));
+        buffer = @alignCast(buffer[(16 - (@intFromPtr(buffer.ptr) % 16))..]);
+    }
+
     while (true) {
-        if (replica.tick()) {
-            std.debug.print("backoff: {}\r\n", .{backoff});
+        // std.debug.print("start loop\r\n", .{});
+        if (replica.tick(@alignCast(@ptrCast(buffer)))) {
             backoff = 0;
         } else {
+            // std.debug.print("backoff: {}\r\n", .{backoff});
             backoff += 10;
             if (backoff > 10) {
                 // sleep based on the backoff
@@ -66,12 +86,15 @@ pub fn start() !void {
 
     var app = App{};
     try app.replica.init(
+        std.heap.page_allocator,
         &system_instance,
         .{ .temp_return = &temp_return },
     );
+    std.debug.print("past init\r\n", .{});
     _ = std.Thread.spawn(.{}, replica_start, .{&app.replica}) catch |err| {
         return err;
     };
+    std.debug.print("past spawn\r\n", .{});
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator_check = gpa.allocator();
@@ -182,7 +205,7 @@ const Client = struct {
         if (self.app.replica.resurveAvailableFiber()) |fiber_index| {
             const temp = &self.app.replica.messages[fiber_index];
 
-            @memcpy(temp, data);
+            @memcpy(temp[0..data.len].ptr, data);
 
             self.app.replica.app_state_data[fiber_index] = AppState{
                 .conn = self.conn,

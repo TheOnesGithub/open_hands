@@ -60,6 +60,7 @@
     form.addEventListener("submit", (e) => {
       e.preventDefault();
 
+          console.log("login");
       const email = document.getElementById("email").value;
       const password = document.getElementById("password").value;
 
@@ -77,6 +78,7 @@
 
       wasm.free(emailPtr, emailBytes.length);
       wasm.free(passwordPtr, passwordBytes.length);
+          console.log("login done");
     });
   }
 </script>

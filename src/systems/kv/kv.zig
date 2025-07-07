@@ -14,6 +14,8 @@ pub const Replica = replica.ReplicaType(
     system,
     AppState,
     &remote_services,
+    global_constants.message_number_max,
+    global_constants.message_size_max,
 );
 
 pub const system = SystemType(*const lmdb.Environment);
@@ -39,10 +41,10 @@ pub fn SystemType(comptime SystemDataType: type) type {
         pub const operations = struct {
             pub const read = struct {
                 pub const Body = struct {
-                    key: StackStringZig.StackString(global_constants.max_key_length),
+                    key: StackStringZig.StackString(u16, global_constants.max_key_length),
                 };
                 pub const Result = struct {
-                    value: StackStringZig.StackString(global_constants.max_value_length),
+                    value: StackStringZig.StackString(u32, global_constants.max_value_length),
                 };
                 pub const State = struct {};
                 pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State) replica.Handled_Status {
@@ -72,8 +74,8 @@ pub fn SystemType(comptime SystemDataType: type) type {
                     };
 
                     if (maybe_value) |value| {
-                        std.debug.print("value: {s}\r\n", .{value});
-                        result.*.value = StackStringZig.StackString(global_constants.max_value_length).init(value);
+                        result.*.value = StackStringZig.StackString(u32, global_constants.max_value_length).init(value);
+                        std.debug.print("read key: {any} value: {any}\r\n", .{ body.*.key, value });
                     } else {
                         std.debug.print("value not found\r\n", .{});
                     }
@@ -88,8 +90,8 @@ pub fn SystemType(comptime SystemDataType: type) type {
             };
             pub const write = struct {
                 pub const Body = struct {
-                    key: StackStringZig.StackString(global_constants.max_key_length),
-                    value: StackStringZig.StackString(global_constants.max_value_length),
+                    key: StackStringZig.StackString(u16, global_constants.max_key_length),
+                    value: StackStringZig.StackString(u32, global_constants.max_value_length),
                 };
                 pub const Result = struct {
                     success: bool,
@@ -130,6 +132,8 @@ pub fn SystemType(comptime SystemDataType: type) type {
                         std.debug.print("failed to commit transaction: {s}\r\n", .{@errorName(err)});
                         return .done;
                     };
+
+                    std.debug.print("stored key: {any} value: {any}\r\n", .{ body.*.key, body.*.value });
 
                     result.*.success = true;
                     return .done;

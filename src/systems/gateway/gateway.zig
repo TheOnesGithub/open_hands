@@ -40,6 +40,8 @@ pub const Replica = replica.ReplicaType(
     system,
     AppState,
     &remote_services,
+    global_constants.message_number_max,
+    1024 * 4,
 );
 
 const AuthMeta = extern struct {
@@ -48,11 +50,11 @@ const AuthMeta = extern struct {
     last_login: i64,
 };
 
-const KeyEmailAuth = StackStringZig.StackString(global_constants.MAX_EMAIL_LENGTH);
+const KeyEmailAuth = StackStringZig.StackString(u8, global_constants.MAX_EMAIL_LENGTH);
 const EmailAuth = extern struct {
     version: u8 = 0,
     user_id: uuid.UUID,
-    hash: StackStringZig.StackString(global_constants.PASSWORD_HASH_LENGTH),
+    hash: StackStringZig.StackString(u8, global_constants.PASSWORD_HASH_LENGTH),
     is_verified: bool,
     meta: AuthMeta,
 };
@@ -60,8 +62,8 @@ const EmailAuth = extern struct {
 const KeyUserProfile = uuid.UUID;
 const UserProfile = extern struct {
     version: u8 = 0,
-    username: StackStringZig.StackString(global_constants.MAX_USERNAME_LENGTH),
-    display_name: StackStringZig.StackString(global_constants.MAX_DISPLAY_NAME_LENGTH),
+    username: StackStringZig.StackString(u8, global_constants.MAX_USERNAME_LENGTH),
+    display_name: StackStringZig.StackString(u8, global_constants.MAX_DISPLAY_NAME_LENGTH),
     meta: AuthMeta,
 };
 
@@ -73,7 +75,7 @@ const LoginAttempt = extern struct {
     timestamp: u64,
     success: bool,
     ip_address: [16]u8,
-    user_agent: StackStringZig.StackString(128),
+    user_agent: StackStringZig.StackString(u8, 128),
     // auth_type: enum { email},
 };
 
@@ -83,76 +85,16 @@ pub fn SystemType() type {
         const System = @This();
 
         pub const Operation = enum(u8) {
-            print = 0,
-            add = 1,
-            make_string = 2,
-            signup = 3,
-            login = 4,
+            signup = 1,
+            login = 2,
         };
 
         pub const operations = struct {
-            pub const print = struct {
-                pub const Body = void;
-                pub const Result = StackStringZig.StackString(64);
-                pub const State = struct {
-                    is_waited_add: bool = false,
-                    add_result: add.Result,
-                    print_result: make_string.Result,
-                };
-                pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State) replica.Handled_Status {
-                    _ = self;
-                    _ = body;
-
-                    const repd: *Replica = @alignCast(@ptrCast(rep));
-                    if (state.is_waited_add) {
-                        // std.debug.print("print after added got: {}\r\n", .{state.add_result});
-                        result.* = state.print_result;
-                        return .done;
-                    }
-                    // std.debug.print("from print \r\n", .{});
-                    const add_message_id = repd.call_local(.add, add.Body{ .a = 2, .b = 2 }, &state.add_result);
-                    repd.add_wait(&add_message_id);
-                    const make_string_message_id = repd.call_local(.make_string, make_string.Body{}, &state.print_result);
-                    repd.add_wait(&make_string_message_id);
-                    state.is_waited_add = true;
-                    return .wait;
-                }
-            };
-            pub const add = struct {
-                pub const Body = struct {
-                    a: u32,
-                    b: u32,
-                };
-                pub const Result = u32;
-                pub const State = struct {};
-                pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State) replica.Handled_Status {
-                    _ = self;
-                    _ = rep;
-                    _ = state;
-                    const added = body.a + body.b;
-                    result.* = added;
-                    return .done;
-                }
-            };
-            pub const make_string = struct {
-                pub const Body = struct {};
-                pub const Result = StackStringZig.StackString(64);
-                pub const State = struct {};
-                pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State) replica.Handled_Status {
-                    _ = self;
-                    _ = rep;
-                    _ = state;
-                    _ = body;
-                    result.* = Result.init("made string in make string");
-                    return .done;
-                }
-            };
-
             pub const signup = struct {
                 pub const Body = struct {
-                    username: StackStringZig.StackString(global_constants.MAX_USERNAME_LENGTH),
-                    email: StackStringZig.StackString(global_constants.MAX_EMAIL_LENGTH),
-                    password: StackStringZig.StackString(global_constants.MAX_PASSWORD_LENGTH),
+                    username: StackStringZig.StackString(u8, global_constants.MAX_USERNAME_LENGTH),
+                    email: StackStringZig.StackString(u8, global_constants.MAX_EMAIL_LENGTH),
+                    password: StackStringZig.StackString(u8, global_constants.MAX_PASSWORD_LENGTH),
                 };
                 pub const Result = struct {
                     is_signed_up_successfully: bool,
@@ -209,15 +151,15 @@ pub fn SystemType() type {
                         system_kv,
                         .write,
                         .{
-                            .key = StackStringZig.StackString(global_constants.max_key_length).init(
+                            .key = StackStringZig.StackString(u16, global_constants.max_key_length).init(
                                 body.email.to_slice() catch |err| {
                                     std.debug.print("failed to get from stack string: {s}\r\n", .{@errorName(err)});
                                     return .done;
                                 },
                             ),
-                            .value = StackStringZig.StackString(global_constants.max_value_length).init(std.mem.asBytes(&EmailAuth{
+                            .value = StackStringZig.StackString(u32, global_constants.max_value_length).init(std.mem.asBytes(&EmailAuth{
                                 .user_id = uuid.UUID.v4(),
-                                .hash = StackStringZig.StackString(global_constants.PASSWORD_HASH_LENGTH).init(hash_str),
+                                .hash = StackStringZig.StackString(u8, global_constants.PASSWORD_HASH_LENGTH).init(hash_str),
                                 .is_verified = false,
                                 .meta = .{
                                     .created_at = current_time,
@@ -237,8 +179,8 @@ pub fn SystemType() type {
 
             pub const login = struct {
                 pub const Body = struct {
-                    email: StackStringZig.StackString(global_constants.MAX_EMAIL_LENGTH),
-                    password: StackStringZig.StackString(global_constants.MAX_PASSWORD_LENGTH),
+                    email: StackStringZig.StackString(u8, global_constants.MAX_EMAIL_LENGTH),
+                    password: StackStringZig.StackString(u8, global_constants.MAX_PASSWORD_LENGTH),
                 };
                 pub const Result = struct {
                     is_logged_in_successfully: bool,
@@ -260,11 +202,13 @@ pub fn SystemType() type {
                         std.debug.print("state machine got vaule from kv\r\n", .{});
                         return .done;
                     }
+
+                    std.debug.print("if this shows up twice in is a problem\r\n", .{});
                     const add_message_id = repd.call_remote(
                         system_kv,
                         .read,
                         .{
-                            .key = StackStringZig.StackString(global_constants.max_key_length).init(
+                            .key = StackStringZig.StackString(u16, global_constants.max_key_length).init(
                                 body.email.to_slice() catch |err| {
                                     std.debug.print("failed to get from stack string: {s}\r\n", .{@errorName(err)});
                                     return .done;

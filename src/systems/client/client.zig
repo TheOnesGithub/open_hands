@@ -22,6 +22,8 @@ pub const Replica = replica.ReplicaType(
     system,
     AppState,
     &remote_services,
+    5,
+    1024 * 4,
 );
 
 pub const system = SystemType();
@@ -37,9 +39,9 @@ pub fn SystemType() type {
         pub const operations = struct {
             pub const signup_client = struct {
                 pub const Body = struct {
-                    username: StackStringZig.StackString(global_constants.MAX_USERNAME_LENGTH),
-                    email: StackStringZig.StackString(global_constants.MAX_EMAIL_LENGTH),
-                    password: StackStringZig.StackString(global_constants.MAX_PASSWORD_LENGTH),
+                    username: StackStringZig.StackString(u8, global_constants.MAX_USERNAME_LENGTH),
+                    email: StackStringZig.StackString(u8, global_constants.MAX_EMAIL_LENGTH),
+                    password: StackStringZig.StackString(u8, global_constants.MAX_PASSWORD_LENGTH),
                 };
                 pub const Result = struct {};
                 pub const State = struct {
@@ -71,8 +73,8 @@ pub fn SystemType() type {
 
             pub const login_client = struct {
                 pub const Body = struct {
-                    email: StackStringZig.StackString(global_constants.MAX_EMAIL_LENGTH),
-                    password: StackStringZig.StackString(global_constants.MAX_PASSWORD_LENGTH),
+                    email: StackStringZig.StackString(u8, global_constants.MAX_EMAIL_LENGTH),
+                    password: StackStringZig.StackString(u8, global_constants.MAX_PASSWORD_LENGTH),
                 };
                 pub const Result = struct {};
                 pub const State = struct {
