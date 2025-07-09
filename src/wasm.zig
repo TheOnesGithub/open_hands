@@ -7,6 +7,7 @@ pub const ReplicaZig = @import("replica.zig");
 pub const client = @import("systems/client/client.zig");
 const Operations = @import("operations.zig");
 const AppState = @import("systems/client/client.zig").AppState;
+const gateway = @import("systems/gateway/gateway.zig");
 
 const allocator = std.heap.wasm_allocator;
 
@@ -179,4 +180,56 @@ fn temp_return(app_state: AppState, message: []align(16) u8) void {
     _ = app_state;
     _ = message;
     // send(message.ptr, message.len);
+}
+
+export fn server_return(ptr: [*]const u8, len: usize) void {
+    const t = "ran from wasm";
+    print_wasm(t, t.len);
+    print_wasm(ptr, len);
+
+    const data = ptr[0..len];
+
+    if (data.len < @sizeOf(message_header.Header.Reply(gateway.system))) {
+        const temp = "received message is too small\n";
+        print_wasm(temp, temp.len);
+        return;
+    }
+
+    // copy the data to a buffer that is aligned
+    var buffer2: [1024 * 4]u8 align(16) = undefined;
+    const temp = buffer2[0..data.len];
+    @memcpy(temp, data);
+
+    // std.debug.print("received from kv: {any}\n", .{data});
+    // cast data to a recieved header
+    const header: *message_header.Header.Reply(gateway.system) = @ptrCast(&buffer2);
+    // get the message id
+    const message_id = header.message_id;
+    // std.debug.print("message id: {any}\n", .{message_id});
+    const user_id_2 = message_id.toHex(.lower);
+    print_wasm(&user_id_2, user_id_2.len);
+
+    // TODO:
+    // route the reply to the corrent message based on the message id
+    // this needs to be able to interact with the replica
+    // this needs to be made thread safe
+    if (replica.message_wait_on_map.get(message_id)) |value| {
+        if (value.is_fiber_waiting) {
+            replica.message_waiting_on_count[value.waiting_index] = replica.message_waiting_on_count[value.waiting_index] - 1;
+        }
+        //TODO: check that size of the data received matches the size of the data expected
+
+        // std.debug.assert(value.reply_size < @sizeOf(Operations.ResultType(kv.system, header.operation)) + 1);
+        // const casted_reply: *Operations.ResultType(kv.system, header.operation) = @alignCast(@ptrCast(&replica.messages_state[value.waiting_index][value.reply_offset]));
+
+        // casted_reply.* = buffer[@sizeOf(message_header.Header.Reply(kv.system))..header.size];
+        // @memcpy(casted_reply, buffer[@sizeOf(message_header.Header.Reply(kv.system))..header.size]);
+        // @memcpy(std.mem.asBytes(casted_reply), buffer[@sizeOf(message_header.Header.Reply(kv.system.Operation))..header.size]);
+        @memcpy(
+            replica.messages_state[value.waiting_index][value.reply_offset .. value.reply_offset + (header.size - @sizeOf(message_header.Header.Reply(gateway.system)))],
+            buffer2[@sizeOf(message_header.Header.Reply(gateway.system))..header.size],
+        );
+
+        // std.debug.print("got vk reply chcek\r\n", .{});
+    }
 }

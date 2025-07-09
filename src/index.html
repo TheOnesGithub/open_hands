@@ -60,8 +60,10 @@
 
     // Print a utf8 string from the Wasm memory buffer
 function print_wasm(ptr, len) {
-        const array = new Uint8Array(memory.buffer, ptr, len);
-        console.log("Printing string:", array);
+    const array = new Uint8Array(memory.buffer, ptr, len);
+    const decoder = new TextDecoder('utf-8');
+    const str = decoder.decode(array);
+    console.log("Printing string:", str);
 }
 
     async function initWasm() {
@@ -118,10 +120,19 @@ function print_wasm(ptr, len) {
         const reader = new FileReader();
 
         reader.onload = function() {
-            // The result is an ArrayBuffer, which you can then view as Uint8Array
-            const arrayBuffer = reader.result;
-            const uint8Array = new Uint8Array(arrayBuffer);
-            console.log("Bytes of Blob data:", uint8Array);
+           const arrayBuffer = reader.result;
+      const uint8Array = new Uint8Array(arrayBuffer);
+
+      // Allocate space in Wasm memory
+      // Assume you have an `alloc` function exported from Wasm
+      const ptr = wasm.alloc(uint8Array.length);
+
+      // Copy data into Wasm memory
+      const wasmMemory = new Uint8Array(memory.buffer, ptr, uint8Array.length);
+      wasmMemory.set(uint8Array);
+
+      // Call the Wasm function with the pointer and length
+      wasm.server_return(ptr, uint8Array.length); 
         };
 
         reader.readAsArrayBuffer(blobData); // Read the Blob as an ArrayBuffer

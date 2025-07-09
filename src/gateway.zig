@@ -539,11 +539,13 @@ const Client = struct {
 
 fn temp_return(app_state: AppState, message: []align(16) u8) void {
     if (app_state.only_return_body) {
+        std.debug.print("only return body\r\n", .{});
         const header: *message_header.Header.Reply(gateway.system) = @ptrCast(@constCast(message));
         app_state.conn.writeBin(message[@sizeOf(message_header.Header.Reply(gateway.system))..header.size]) catch {
             std.debug.assert(false);
         };
     } else {
+        std.debug.print("return with header\r\n", .{});
         app_state.conn.writeBin(message) catch {
             std.debug.assert(false);
         };

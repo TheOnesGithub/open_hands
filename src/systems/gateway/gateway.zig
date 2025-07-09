@@ -91,12 +91,12 @@ pub fn SystemType() type {
 
         pub const operations = struct {
             pub const signup = struct {
-                pub const Body = struct {
+                pub const Body = extern struct {
                     username: StackStringZig.StackString(u8, global_constants.MAX_USERNAME_LENGTH),
                     email: StackStringZig.StackString(u8, global_constants.MAX_EMAIL_LENGTH),
                     password: StackStringZig.StackString(u8, global_constants.MAX_PASSWORD_LENGTH),
                 };
-                pub const Result = struct {
+                pub const Result = extern struct {
                     is_signed_up_successfully: bool,
                 };
                 pub const State = struct {
@@ -169,7 +169,10 @@ pub fn SystemType() type {
                             })),
                         },
                         &state.kv_result,
-                    );
+                    ) catch {
+                        std.debug.print("failed to call kv\r\n", .{});
+                        return .done;
+                    };
                     repd.add_wait(&add_message_id);
                     state.is_has_ran = true;
                     std.debug.print("added login wait\r\n", .{});
@@ -178,12 +181,13 @@ pub fn SystemType() type {
             };
 
             pub const login = struct {
-                pub const Body = struct {
+                pub const Body = extern struct {
                     email: StackStringZig.StackString(u8, global_constants.MAX_EMAIL_LENGTH),
                     password: StackStringZig.StackString(u8, global_constants.MAX_PASSWORD_LENGTH),
                 };
-                pub const Result = struct {
+                pub const Result = extern struct {
                     is_logged_in_successfully: bool,
+                    user_id: uuid.UUID,
                 };
                 pub const State = struct {
                     is_has_ran: bool = false,
@@ -197,9 +201,31 @@ pub fn SystemType() type {
                     // if not, send a message back saying they are not logged in
 
                     const repd: *Replica = @alignCast(@ptrCast(rep));
-                    _ = result;
+
                     if (state.is_has_ran) {
                         std.debug.print("state machine got vaule from kv\r\n", .{});
+
+                        std.debug.print("kv result: {any}\r\n", .{state.kv_result});
+
+                        if (state.kv_result.is_value_found) {
+                            std.debug.print("value found\r\n", .{});
+                            const value = state.kv_result.value.to_slice() catch |err| {
+                                std.debug.print("failed to get from stack string: {s}\r\n", .{@errorName(err)});
+                                return .done;
+                            };
+
+                            if (value.len < @sizeOf(EmailAuth)) {
+                                std.debug.print("value is smaller than expected struct\r\n", .{});
+                                return .done;
+                            }
+                            const value_casted = std.mem.bytesAsValue(EmailAuth, value[0..@sizeOf(EmailAuth)]);
+
+                            std.debug.print("value casted: {any}\r\n", .{value_casted});
+
+                            result.*.is_logged_in_successfully = true;
+                            result.*.user_id = value_casted.user_id;
+                        }
+
                         return .done;
                     }
 
@@ -216,7 +242,10 @@ pub fn SystemType() type {
                             ),
                         },
                         &state.kv_result,
-                    );
+                    ) catch {
+                        std.debug.print("failed to call kv\r\n", .{});
+                        return .done;
+                    };
                     repd.add_wait(&add_message_id);
                     state.is_has_ran = true;
                     std.debug.print("added login wait\r\n", .{});

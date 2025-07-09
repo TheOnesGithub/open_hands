@@ -66,7 +66,9 @@ pub fn ReplicaType(
         message_indexs: [message_number_max]u32 = undefined,
         message_waiting_on_count: [message_number_max]u8 = [_]u8{0} ** message_number_max,
 
-        message_wait_on_map_buffer: [global_constants.message_wait_on_map_buffer_size]u8 = undefined,
+        // message_wait_on_map_buffer: [global_constants.message_wait_on_map_buffer_size]u8 = undefined,
+        message_wait_on_map_buffer: [1024 * 1024 * 26]u8 = undefined,
+
         message_wait_on_map: AutoHashMap(uuid.UUID, Message_Request_Value) = undefined,
         fba: std.heap.FixedBufferAllocator = undefined,
         remote_request_buffer: *[message_size_max]u8 = undefined,
@@ -183,6 +185,10 @@ pub fn ReplicaType(
                 i -= 1;
                 const idx = self.message_indexs[i];
                 if (self.message_statuses[idx] == .Ready or (self.message_statuses[idx] == .Suspended and self.message_waiting_on_count[idx] == 0)) {
+                    if (!builtin.cpu.arch.isWasm()) {
+                        std.debug.print("tick: processing message with status: {any}\r\n", .{self.message_statuses[idx]});
+                        std.debug.print("number of waiting on: {any}\r\n", .{self.message_waiting_on_count[idx]});
+                    }
                     processed = true;
                     // Remove the item by shifting the others up
                     for (i..self.top - 1) |j| {
@@ -243,6 +249,9 @@ pub fn ReplicaType(
                                     if (self.message_wait_on_map.get(self.message_ids[idx])) |value| {
                                         _ = self.message_wait_on_map.remove(self.message_ids[idx]); // Remove the key-value pair
                                         if (value.is_fiber_waiting) {
+                                            if (!builtin.cpu.arch.isWasm()) {
+                                                std.debug.print("decrementing waiting on count\r\n", .{});
+                                            }
                                             self.message_waiting_on_count[value.waiting_index] = self.message_waiting_on_count[value.waiting_index] - 1;
                                         }
                                         std.debug.assert(value.reply_size < @sizeOf(Result) + 1);
@@ -272,7 +281,7 @@ pub fn ReplicaType(
             comptime operation: Remote_Operations.Operation,
             body: Operations.BodyType(Remote_Operations, operation),
             reply: *Operations.ResultType(Remote_Operations, operation),
-        ) uuid.UUID {
+        ) !uuid.UUID {
             if (comptime !builtin.cpu.arch.isWasm()) {
                 std.debug.print("in replica call remote \r\n", .{});
             }
@@ -290,7 +299,13 @@ pub fn ReplicaType(
             if (comptime !builtin.cpu.arch.isWasm()) {
                 std.debug.print("putting message id in map: {}\r\n", .{message_id});
             }
-            self.message_wait_on_map.put(message_id, message_request_value) catch undefined;
+            self.message_wait_on_map.put(message_id, message_request_value) catch |err| {
+                if (!builtin.cpu.arch.isWasm()) {
+                    std.debug.print("failed to put message id in map: {}\r\n", .{message_id});
+                    std.debug.print("error: {s}\r\n", .{@errorName(err)});
+                }
+                return err;
+            };
             if (comptime !builtin.cpu.arch.isWasm()) {
                 std.debug.print("in replica call remote 2\r\n", .{});
             }
@@ -388,8 +403,24 @@ pub fn ReplicaType(
         }
 
         pub fn add_wait(self: *Replica, message_id: *const uuid.UUID) void {
+            if (!builtin.cpu.arch.isWasm()) {
+                std.debug.print("started add wait message_id: {any}\r\n", .{message_id});
+                std.debug.print("wait count: {any}\r\n", .{self.message_wait_on_map.count()});
+            }
+
+            // print all items is the message wait on map
+            if (!builtin.cpu.arch.isWasm()) {
+                var iter = self.message_wait_on_map.iterator();
+                while (iter.next()) |item| {
+                    std.debug.print("message id: {any}\r\n", .{item.key_ptr.*});
+                }
+            }
+
             if (self.message_wait_on_map.getPtr(message_id.*)) |value| {
                 value.is_fiber_waiting = true;
+                if (!builtin.cpu.arch.isWasm()) {
+                    std.debug.print("incrementing waiting on count\r\n", .{});
+                }
                 self.message_waiting_on_count[self.current_message] = self.message_waiting_on_count[self.current_message] + 1;
                 return;
             }

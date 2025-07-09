@@ -4,6 +4,9 @@ const replica = @import("../../replica.zig");
 const StackStringZig = @import("../../stack_string.zig");
 const system_gateway = @import("../gateway/gateway.zig").system;
 const send = @import("../../wasm.zig").send;
+const uuid = @import("../../uuid.zig");
+
+const print_wasm = @import("../../wasm.zig").print_wasm;
 
 pub const AppState = struct {};
 
@@ -30,6 +33,8 @@ pub const system = SystemType();
 pub fn SystemType() type {
     return struct {
         const System = @This();
+
+        const user_id: ?uuid.UUID = null;
 
         pub const Operation = enum(u8) {
             signup_client = 0,
@@ -64,7 +69,11 @@ pub fn SystemType() type {
                             .password = body.password,
                         },
                         &state.signup_result,
-                    );
+                    ) catch {
+                        const temp = "failed to call kv\r\n";
+                        print_wasm(temp.ptr, temp.len);
+                        return .done;
+                    };
                     repd.add_wait(&add_message_id);
                     state.is_has_ran = true;
                     return .wait;
@@ -79,13 +88,20 @@ pub fn SystemType() type {
                 pub const Result = struct {};
                 pub const State = struct {
                     is_has_ran: bool = false,
-                    login_result: system_gateway.operations.login.Result = .{ .is_logged_in_successfully = false },
+                    login_result: system_gateway.operations.login.Result = .{
+                        .is_logged_in_successfully = false,
+                        .user_id = undefined,
+                    },
                 };
                 pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State) replica.Handled_Status {
                     _ = self;
                     const repd: *Replica = @alignCast(@ptrCast(rep));
                     _ = result;
                     if (state.is_has_ran) {
+                        const ran_check = "ran check";
+                        print_wasm(ran_check, ran_check.len);
+                        const user_id_2 = state.*.login_result.user_id.toHex(.lower);
+                        print_wasm(&user_id_2, user_id_2.len);
                         return .done;
                     }
                     const add_message_id = repd.call_remote(
@@ -96,9 +112,15 @@ pub fn SystemType() type {
                             .password = body.password,
                         },
                         &state.login_result,
-                    );
+                    ) catch {
+                        const temp = "failed to call kv\r\n";
+                        print_wasm(temp.ptr, temp.len);
+                        return .done;
+                    };
                     repd.add_wait(&add_message_id);
                     state.is_has_ran = true;
+                    const ran_check = "ran wait check";
+                    print_wasm(ran_check, ran_check.len);
                     return .wait;
                 }
             };

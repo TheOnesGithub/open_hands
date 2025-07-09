@@ -40,10 +40,11 @@ pub fn SystemType(comptime SystemDataType: type) type {
 
         pub const operations = struct {
             pub const read = struct {
-                pub const Body = struct {
+                pub const Body = extern struct {
                     key: StackStringZig.StackString(u16, global_constants.max_key_length),
                 };
-                pub const Result = struct {
+                pub const Result = extern struct {
+                    is_value_found: bool = false,
                     value: StackStringZig.StackString(u32, global_constants.max_value_length),
                 };
                 pub const State = struct {};
@@ -75,6 +76,7 @@ pub fn SystemType(comptime SystemDataType: type) type {
 
                     if (maybe_value) |value| {
                         result.*.value = StackStringZig.StackString(u32, global_constants.max_value_length).init(value);
+                        result.*.is_value_found = true;
                         std.debug.print("read key: {any} value: {any}\r\n", .{ body.*.key, value });
                     } else {
                         std.debug.print("value not found\r\n", .{});
@@ -89,11 +91,11 @@ pub fn SystemType(comptime SystemDataType: type) type {
                 }
             };
             pub const write = struct {
-                pub const Body = struct {
+                pub const Body = extern struct {
                     key: StackStringZig.StackString(u16, global_constants.max_key_length),
                     value: StackStringZig.StackString(u32, global_constants.max_value_length),
                 };
-                pub const Result = struct {
+                pub const Result = extern struct {
                     success: bool,
                 };
                 pub const State = struct {};
