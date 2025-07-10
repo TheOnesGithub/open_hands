@@ -63,7 +63,7 @@ const KeyUserProfile = uuid.UUID;
 const UserProfile = extern struct {
     version: u8 = 0,
     username: StackStringZig.StackString(u8, global_constants.MAX_USERNAME_LENGTH),
-    display_name: StackStringZig.StackString(u8, global_constants.MAX_DISPLAY_NAME_LENGTH),
+    display_name: StackStringZig.StackString(u8, global_constants.max_display_name_length),
     meta: AuthMeta,
 };
 
@@ -101,7 +101,8 @@ pub fn SystemType() type {
                 };
                 pub const State = struct {
                     is_has_ran: bool = false,
-                    kv_result: system_kv.operations.write.Result = .{ .success = false },
+                    kv_result_email_auth: system_kv.operations.write.Result = .{ .success = false },
+                    kv_result_created_user: system_kv.operations.write.Result = .{ .success = false },
                 };
                 pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State) replica.Handled_Status {
                     _ = self;
@@ -109,7 +110,7 @@ pub fn SystemType() type {
                     const repd: *Replica = @alignCast(@ptrCast(rep));
                     if (state.is_has_ran) {
                         std.debug.print("state machine back after signup\r\n", .{});
-                        result.*.is_signed_up_successfully = state.kv_result.success;
+                        result.*.is_signed_up_successfully = state.kv_result_email_auth.success;
                         return .done;
                     }
 
@@ -147,7 +148,8 @@ pub fn SystemType() type {
                     };
 
                     const current_time = std.time.milliTimestamp();
-                    const add_message_id = repd.call_remote(
+                    const new_user_id = uuid.UUID.v4();
+                    var add_message_id = repd.call_remote(
                         system_kv,
                         .write,
                         .{
@@ -158,7 +160,7 @@ pub fn SystemType() type {
                                 },
                             ),
                             .value = StackStringZig.StackString(u32, global_constants.max_value_length).init(std.mem.asBytes(&EmailAuth{
-                                .user_id = uuid.UUID.v4(),
+                                .user_id = new_user_id,
                                 .hash = StackStringZig.StackString(u8, global_constants.PASSWORD_HASH_LENGTH).init(hash_str),
                                 .is_verified = false,
                                 .meta = .{
@@ -168,7 +170,39 @@ pub fn SystemType() type {
                                 },
                             })),
                         },
-                        &state.kv_result,
+                        &state.kv_result_email_auth,
+                    ) catch {
+                        std.debug.print("failed to call kv\r\n", .{});
+                        return .done;
+                    };
+                    repd.add_wait(&add_message_id);
+                    var key_user_profile = StackStringZig.StackString(u16, global_constants.max_key_length).init("user_profile");
+                    key_user_profile.append(&new_user_id.bin) catch {
+                        std.debug.print("failed to append to key\r\n", .{});
+                        return .done;
+                    };
+
+                    add_message_id = repd.call_remote(
+                        system_kv,
+                        .write,
+                        .{
+                            // UserProfile + user_id
+                            .key = key_user_profile,
+                            .value = StackStringZig.StackString(u32, global_constants.max_value_length).init(std.mem.asBytes(&UserProfile{
+                                .version = 0,
+                                .username = body.username,
+                                .display_name = StackStringZig.StackString(u8, global_constants.max_display_name_length).init(body.username.to_slice() catch |err| {
+                                    std.debug.print("failed to get from stack string: {s}\r\n", .{@errorName(err)});
+                                    return .done;
+                                }),
+                                .meta = .{
+                                    .created_at = current_time,
+                                    .updated_at = current_time,
+                                    .last_login = current_time,
+                                },
+                            })),
+                        },
+                        &state.kv_result_email_auth,
                     ) catch {
                         std.debug.print("failed to call kv\r\n", .{});
                         return .done;
@@ -188,10 +222,14 @@ pub fn SystemType() type {
                 pub const Result = extern struct {
                     is_logged_in_successfully: bool,
                     user_id: uuid.UUID,
+                    display_name: StackStringZig.StackString(u8, global_constants.max_display_name_length),
+                    username: StackStringZig.StackString(u8, global_constants.MAX_USERNAME_LENGTH),
                 };
                 pub const State = struct {
                     is_has_ran: bool = false,
-                    kv_result: system_kv.operations.read.Result,
+                    kv_result_email_auth: system_kv.operations.read.Result,
+                    is_has_ran_get_user_profile: bool = false,
+                    kv_result_user_profile: system_kv.operations.read.Result,
                 };
                 pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State) replica.Handled_Status {
                     _ = self;
@@ -205,11 +243,11 @@ pub fn SystemType() type {
                     if (state.is_has_ran) {
                         std.debug.print("state machine got vaule from kv\r\n", .{});
 
-                        std.debug.print("kv result: {any}\r\n", .{state.kv_result});
+                        std.debug.print("kv result: {any}\r\n", .{state.kv_result_email_auth});
 
-                        if (state.kv_result.is_value_found) {
+                        if (state.kv_result_email_auth.is_value_found) {
                             std.debug.print("value found\r\n", .{});
-                            const value = state.kv_result.value.to_slice() catch |err| {
+                            const value = state.kv_result_email_auth.value.to_slice() catch |err| {
                                 std.debug.print("failed to get from stack string: {s}\r\n", .{@errorName(err)});
                                 return .done;
                             };
@@ -220,10 +258,49 @@ pub fn SystemType() type {
                             }
                             const value_casted = std.mem.bytesAsValue(EmailAuth, value[0..@sizeOf(EmailAuth)]);
 
+                            if (!state.is_has_ran_get_user_profile) {
+                                // get the user profile
+                                var key_user_profile = StackStringZig.StackString(u16, global_constants.max_key_length).init("user_profile");
+                                key_user_profile.append(&value_casted.user_id.bin) catch {
+                                    std.debug.print("failed to append to key\r\n", .{});
+                                    return .done;
+                                };
+
+                                const add_message_id = repd.call_remote(
+                                    system_kv,
+                                    .read,
+                                    .{
+                                        .key = key_user_profile,
+                                    },
+                                    &state.kv_result_user_profile,
+                                ) catch {
+                                    std.debug.print("failed to call kv\r\n", .{});
+                                    return .done;
+                                };
+                                repd.add_wait(&add_message_id);
+                                state.is_has_ran_get_user_profile = true;
+                                return .wait;
+                            }
+
                             std.debug.print("value casted: {any}\r\n", .{value_casted});
+
+                            const value_casted_user_profile = state.kv_result_user_profile.value.to_slice() catch |err| {
+                                std.debug.print("failed to get from stack string: {s}\r\n", .{@errorName(err)});
+                                return .done;
+                            };
+
+                            if (value_casted_user_profile.len < @sizeOf(UserProfile)) {
+                                std.debug.print("value is smaller than expected struct\r\n", .{});
+                                return .done;
+                            }
+                            const value_casted_user_profile_casted = std.mem.bytesAsValue(UserProfile, value_casted_user_profile[0..@sizeOf(UserProfile)]);
+
+                            std.debug.print("value casted: {any}\r\n", .{value_casted_user_profile_casted});
 
                             result.*.is_logged_in_successfully = true;
                             result.*.user_id = value_casted.user_id;
+                            result.*.display_name = value_casted_user_profile_casted.display_name;
+                            result.*.username = value_casted_user_profile_casted.username;
 
                             std.debug.print("result.*.user_id: {any}\r\n", .{result});
                         }
@@ -243,7 +320,7 @@ pub fn SystemType() type {
                                 },
                             ),
                         },
-                        &state.kv_result,
+                        &state.kv_result_email_auth,
                     ) catch {
                         std.debug.print("failed to call kv\r\n", .{});
                         return .done;

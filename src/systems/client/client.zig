@@ -10,10 +10,14 @@ const print_wasm = @import("../../wasm.zig").print_wasm;
 
 const GlobalState = struct {
     user_id: ?uuid.UUID,
+    display_name: ?StackStringZig.StackString(u8, global_constants.max_display_name_length),
+    username: ?StackStringZig.StackString(u8, global_constants.MAX_USERNAME_LENGTH),
 };
 
 var global_state: GlobalState = .{
     .user_id = null,
+    .display_name = null,
+    .username = null,
 };
 
 pub const AppState = struct {};
@@ -99,6 +103,8 @@ pub fn SystemType() type {
                     login_result: system_gateway.operations.login.Result = .{
                         .is_logged_in_successfully = false,
                         .user_id = undefined,
+                        .display_name = undefined,
+                        .username = undefined,
                     },
                 };
                 pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State) replica.Handled_Status {
@@ -116,6 +122,20 @@ pub fn SystemType() type {
                             global_state.user_id = state.login_result.user_id;
                             const user_id_2 = global_state.user_id.?.toHex(.lower);
                             print_wasm(&user_id_2, user_id_2.len);
+                            global_state.username = state.login_result.username;
+                            const username = global_state.username.?.to_slice() catch {
+                                const temp = "failed to get from stack string: {s}\r\n";
+                                print_wasm(temp, temp.len);
+                                return .done;
+                            };
+                            global_state.display_name = state.login_result.display_name;
+                            print_wasm(username.ptr, username.len);
+                            const display_name = global_state.display_name.?.to_slice() catch {
+                                const temp = "failed to get from stack string: {s}\r\n";
+                                print_wasm(temp, temp.len);
+                                return .done;
+                            };
+                            print_wasm(display_name.ptr, display_name.len);
                         }
 
                         return .done;
