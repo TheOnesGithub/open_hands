@@ -68,7 +68,7 @@ function print_wasm(ptr, len) {
 
 
            const updateFunctions = {
-    updateContent: function() {
+    updateContent: function(element) {
       console.log('----updateContent called!');
               const buffer_ptr = wasm.updateContent();
             const str_len = new Uint32Array(memory.buffer, buffer_ptr, 1);
@@ -79,14 +79,9 @@ function print_wasm(ptr, len) {
              const str = new TextDecoder().decode(str_buf);
              console.log('str: ', str);
 
+            // replace the content of the element with the new content
+            element.outerHTML = str;
 
-              // const len = new Uint32Array(memory.buffer, 0, 1)[0];
-              // const array = new Uint8Array(memory.buffer, 4, len);
-    // const decoder = new TextDecoder('utf-8');
-    // const str = decoder.decode(array);
-
-              // console.log('len: ', len);
-              // console.log('str: ', str);
               wasm.free(buffer_ptr, str_len[0] + 4);
     },
     // add more functions as needed
@@ -108,7 +103,7 @@ function print_wasm(ptr, len) {
     updateAttr.split(' ').forEach(function(fnName) {
                 console.log('fnName: ', fnName);
       if (typeof updateFunctions[fnName] === 'function') {
-        updateFunctions[fnName]();
+        updateFunctions[fnName](element);
       } else {
         console.warn(`Function ${fnName} is not defined in updateFunctions`);
       }
