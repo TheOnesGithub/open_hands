@@ -14,13 +14,35 @@ const GlobalState = struct {
     username: ?StackStringZig.StackString(u8, global_constants.MAX_USERNAME_LENGTH),
 };
 
-var global_state: GlobalState = .{
+pub var global_state: GlobalState = .{
+    .user_id = null,
+    .display_name = null,
+    .username = null,
+};
+
+pub var check_global_state: GlobalState = .{
     .user_id = null,
     .display_name = null,
     .username = null,
 };
 
 pub const AppState = struct {};
+
+fn get_channge(comptime CheckType: type, s: *CheckType, check: *CheckType) void {
+    const T = @TypeOf(s.*);
+    const info = @typeInfo(T).@"struct";
+    inline for (info.fields) |field| {
+        var skip = false;
+        if (std.meta.eql(@field(s.*, field.name), @field(check.*, field.name))) {
+            skip = true;
+        }
+
+        if (!skip) {
+            const field_name = field.name;
+            print_wasm(@ptrCast(field_name), field_name.len);
+        }
+    }
+}
 
 pub const remote_services = [_]replica.RemoteService{
     .{
@@ -128,14 +150,17 @@ pub fn SystemType() type {
                                 print_wasm(temp, temp.len);
                                 return .done;
                             };
-                            global_state.display_name = state.login_result.display_name;
                             print_wasm(username.ptr, username.len);
+
+                            global_state.display_name = state.login_result.display_name;
                             const display_name = global_state.display_name.?.to_slice() catch {
                                 const temp = "failed to get from stack string: {s}\r\n";
                                 print_wasm(temp, temp.len);
                                 return .done;
                             };
                             print_wasm(display_name.ptr, display_name.len);
+
+                            get_channge(GlobalState, &global_state, &check_global_state);
                         }
 
                         return .done;
