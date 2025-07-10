@@ -66,12 +66,63 @@ function print_wasm(ptr, len) {
     console.log("Printing string:", str);
 }
 
+
+           const updateFunctions = {
+    updateContent: function() {
+      console.log('----updateContent called!');
+              const buffer_ptr = wasm.updateContent();
+            const str_len = new Uint32Array(memory.buffer, buffer_ptr, 1);
+            console.log('str_len: ', str_len);
+             const str_buf = new Uint8Array(memory.buffer, buffer_ptr + 4, str_len[0]);
+            console.log('str_buf: ', str_buf);
+ 
+             const str = new TextDecoder().decode(str_buf);
+             console.log('str: ', str);
+
+
+              // const len = new Uint32Array(memory.buffer, 0, 1)[0];
+              // const array = new Uint8Array(memory.buffer, 4, len);
+    // const decoder = new TextDecoder('utf-8');
+    // const str = decoder.decode(array);
+
+              // console.log('len: ', len);
+              // console.log('str: ', str);
+              wasm.free(buffer_ptr, str_len[0] + 4);
+    },
+    // add more functions as needed
+  };
+
+
+    function update_data(ptr, len) {
+
+        const array = new Uint8Array(memory.buffer, ptr, len);
+    const decoder = new TextDecoder('utf-8');
+    const str = decoder.decode(array);
+            console.log('update_data: ', str);
+
+          const elements = document.querySelectorAll(str);
+  elements.forEach(element => {
+    const updateAttr = element.getAttribute('update');
+            console.log('updateAttr: ', updateAttr);
+    if (!updateAttr) return; // Skip if no update attribute
+    updateAttr.split(' ').forEach(function(fnName) {
+                console.log('fnName: ', fnName);
+      if (typeof updateFunctions[fnName] === 'function') {
+        updateFunctions[fnName]();
+      } else {
+        console.warn(`Function ${fnName} is not defined in updateFunctions`);
+      }
+    });
+  });
+    }
+
     async function initWasm() {
     const importObject = {
       env: {
         notify_timer_change: updateTimerUI,
         send: send,
                 print_wasm: print_wasm,
+                update_data: update_data,
         import_random_bytes: (bufferAddress, length) => {
                 // Get a view of the Wasm memory buffer as a Uint8Array
                 const memoryBuffer = new Uint8Array(memory.buffer);

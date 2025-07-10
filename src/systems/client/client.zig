@@ -28,7 +28,7 @@ pub var check_global_state: GlobalState = .{
 
 pub const AppState = struct {};
 
-fn get_channge(comptime CheckType: type, s: *CheckType, check: *CheckType) void {
+fn get_channge(comptime CheckType: type, s: *CheckType, check: *CheckType, prefix: []const u8) void {
     const T = @TypeOf(s.*);
     const info = @typeInfo(T).@"struct";
     inline for (info.fields) |field| {
@@ -38,8 +38,13 @@ fn get_channge(comptime CheckType: type, s: *CheckType, check: *CheckType) void 
         }
 
         if (!skip) {
-            const field_name = field.name;
-            print_wasm(@ptrCast(field_name), field_name.len);
+            var buffer: [128]u8 = undefined;
+
+            // Copy both slices into the result
+            std.mem.copyForwards(u8, buffer[0..prefix.len], prefix);
+            std.mem.copyForwards(u8, buffer[prefix.len .. prefix.len + field.name.len], field.name);
+            print_wasm(@ptrCast(&buffer), prefix.len + field.name.len);
+            @import("../../wasm.zig").update_data(@ptrCast(&buffer), prefix.len + field.name.len);
         }
     }
 }
@@ -160,7 +165,7 @@ pub fn SystemType() type {
                             };
                             print_wasm(display_name.ptr, display_name.len);
 
-                            get_channge(GlobalState, &global_state, &check_global_state);
+                            get_channge(GlobalState, &global_state, &check_global_state, ".global_state-");
                         }
 
                         return .done;

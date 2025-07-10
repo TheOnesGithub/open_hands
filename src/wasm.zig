@@ -17,6 +17,8 @@ pub extern fn send(ptr: [*]const u8, len: usize) void;
 
 pub extern fn print_wasm(ptr: [*]const u8, len: usize) void;
 
+pub extern fn update_data(ptr: [*]const u8, len: usize) void;
+
 fn handle_network_reply(message_id: uuid.UUID, buffer_ptr: [*]u8) void {
     _ = buffer_ptr;
     _ = message_id;
@@ -241,4 +243,16 @@ export fn server_return(ptr: [*]const u8, len: usize) void {
 
         // std.debug.print("got vk reply chcek\r\n", .{});
     }
+}
+
+pub export fn updateContent() *const u8 {
+    // first 4 bytes are the length of the string
+
+    const str = @embedFile("components/main_menu.html");
+    const len: u32 = @intCast(str.len);
+    const ptr = allocator.alloc(u8, len + 4) catch unreachable;
+    const len2: *u32 = @alignCast(@ptrCast(ptr.ptr));
+    len2.* = len;
+    std.mem.copyForwards(u8, ptr[4 .. len + 4], str);
+    return @ptrCast(ptr.ptr);
 }
