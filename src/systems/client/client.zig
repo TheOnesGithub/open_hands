@@ -8,6 +8,14 @@ const uuid = @import("../../uuid.zig");
 
 const print_wasm = @import("../../wasm.zig").print_wasm;
 
+const GlobalState = struct {
+    user_id: ?uuid.UUID,
+};
+
+var global_state: GlobalState = .{
+    .user_id = null,
+};
+
 pub const AppState = struct {};
 
 pub const remote_services = [_]replica.RemoteService{
@@ -97,11 +105,19 @@ pub fn SystemType() type {
                     _ = self;
                     const repd: *Replica = @alignCast(@ptrCast(rep));
                     _ = result;
+
+                    const ran_check_0 = "client login ran check";
+                    print_wasm(ran_check_0, ran_check_0.len);
                     if (state.is_has_ran) {
-                        const ran_check = "ran check";
+                        const ran_check = "ran check is has ran";
                         print_wasm(ran_check, ran_check.len);
-                        const user_id_2 = state.*.login_result.user_id.toHex(.lower);
-                        print_wasm(&user_id_2, user_id_2.len);
+
+                        if (state.login_result.is_logged_in_successfully) {
+                            global_state.user_id = state.login_result.user_id;
+                            const user_id_2 = global_state.user_id.?.toHex(.lower);
+                            print_wasm(&user_id_2, user_id_2.len);
+                        }
+
                         return .done;
                     }
                     const add_message_id = repd.call_remote(

@@ -546,6 +546,8 @@ fn temp_return(app_state: AppState, message: []align(16) u8) void {
         };
     } else {
         std.debug.print("return with header\r\n", .{});
+        const header: *message_header.Header.Reply(gateway.system) = @ptrCast(@constCast(message));
+        header.message_id = app_state.client_message_id;
         app_state.conn.writeBin(message) catch {
             std.debug.assert(false);
         };

@@ -303,7 +303,11 @@ pub fn ReplicaType(
                 if (!builtin.cpu.arch.isWasm()) {
                     std.debug.print("failed to put message id in map: {}\r\n", .{message_id});
                     std.debug.print("error: {s}\r\n", .{@errorName(err)});
+                } else {
+                    const wasm_msg = "failed to put message id in map";
+                    @import("wasm.zig").print_wasm(wasm_msg, wasm_msg.len);
                 }
+
                 return err;
             };
             if (comptime !builtin.cpu.arch.isWasm()) {

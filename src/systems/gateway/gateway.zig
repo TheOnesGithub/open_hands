@@ -224,6 +224,8 @@ pub fn SystemType() type {
 
                             result.*.is_logged_in_successfully = true;
                             result.*.user_id = value_casted.user_id;
+
+                            std.debug.print("result.*.user_id: {any}\r\n", .{result});
                         }
 
                         return .done;

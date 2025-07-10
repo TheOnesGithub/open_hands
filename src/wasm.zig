@@ -209,11 +209,20 @@ export fn server_return(ptr: [*]const u8, len: usize) void {
     const user_id_2 = message_id.toHex(.lower);
     print_wasm(&user_id_2, user_id_2.len);
 
+    // print the numer of item in the map
+    // make the numer a stirng
+    // const map_message_0 = std.fmt.allocPrint(allocator, "map size: {}", .{replica.message_wait_on_map.count()}) catch {
+    //     return;
+    // };
+    print_wasm(@ptrCast(&replica.message_wait_on_map.count()), @sizeOf(u32));
+
     // TODO:
     // route the reply to the corrent message based on the message id
     // this needs to be able to interact with the replica
     // this needs to be made thread safe
     if (replica.message_wait_on_map.get(message_id)) |value| {
+        const map_message = "got message from map";
+        print_wasm(map_message, map_message.len);
         if (value.is_fiber_waiting) {
             replica.message_waiting_on_count[value.waiting_index] = replica.message_waiting_on_count[value.waiting_index] - 1;
         }
