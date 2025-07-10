@@ -23,6 +23,8 @@ pub const BufferWriter = struct {
             .position_body = 8,
         };
 
+        // const alined_len = try std.math.divCeil(usize, buffer_len, 4);
+        // bufferWriter.buffer = try allocator2.alignedAlloc(U8, 32, alined_len);
         bufferWriter.buffer = try allocator2.alloc(u8, buffer_len);
 
         bufferWriter.position_header = 4;

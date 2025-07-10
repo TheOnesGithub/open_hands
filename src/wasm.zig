@@ -8,6 +8,7 @@ pub const client = @import("systems/client/client.zig");
 const Operations = @import("operations.zig");
 const AppState = @import("systems/client/client.zig").AppState;
 const gateway = @import("systems/gateway/gateway.zig");
+const shared = @import("shared.zig");
 
 const allocator = std.heap.wasm_allocator;
 
@@ -248,11 +249,69 @@ export fn server_return(ptr: [*]const u8, len: usize) void {
 pub export fn updateContent() *const u8 {
     // first 4 bytes are the length of the string
 
-    const str = @embedFile("components/main_menu.html");
-    const len: u32 = @intCast(str.len);
-    const ptr = allocator.alloc(u8, len + 4) catch unreachable;
-    const len2: *u32 = @alignCast(@ptrCast(ptr.ptr));
-    len2.* = len;
-    std.mem.copyForwards(u8, ptr[4 .. len + 4], str);
-    return @ptrCast(ptr.ptr);
+    const BufferSize = 50000;
+    // var buffer: [BufferSize]u8 = undefined; // fixed-size backing buffer
+
+    // const buffer_t: [BufferSize]u8 = [_]u8{0} ** BufferSize;
+    // var fba2 = std.heap.FixedBufferAllocator.init(buffer_t);
+    //
+    // const allocator_t = fba2.allocator();
+
+    var writer = shared.BufferWriter.init(&allocator, BufferSize) catch {
+        const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+        return &empty[0];
+    };
+
+    const file_content = @embedFile("components/main_menu.html");
+    const parts = comptime shared.splitOnMarkers(file_content);
+
+    writer.set_lens();
+    // writer.write_to_header("this is the header") catch {
+    //     const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+    //     return &empty[0];
+    // };
+
+    writer.set_lens();
+
+    writer.write_to_body(parts[0]) catch {
+        const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+        return &empty[0];
+    };
+
+    writer.set_lens();
+
+    writer.write_to_body(client.global_state.username.?.to_slice() catch {
+        const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+        return &empty[0];
+    }) catch {
+        const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+        return &empty[0];
+    };
+
+    writer.write_to_body(parts[1]) catch {
+        const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+        return &empty[0];
+    };
+
+    writer.write_to_body(client.global_state.display_name.?.to_slice() catch {
+        const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+        return &empty[0];
+    }) catch {
+        const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+        return &empty[0];
+    };
+
+    writer.set_lens();
+
+    const addr_int: usize = @intFromPtr(writer.buffer.ptr);
+    const addr: *u8 = @ptrFromInt(addr_int + writer.position_header);
+    return addr;
+
+    // const str = @embedFile("components/main_menu.html");
+    // const len: u32 = @intCast(str.len);
+    // const ptr = allocator.alloc(u8, len + 4) catch unreachable;
+    // const len2: *u32 = @alignCast(@ptrCast(ptr.ptr));
+    // len2.* = len;
+    // std.mem.copyForwards(u8, ptr[4 .. len + 4], str);
+    // return @ptrCast(ptr.ptr);
 }
