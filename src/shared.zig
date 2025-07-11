@@ -63,6 +63,8 @@ pub const BufferWriter = struct {
         }
         std.mem.copyForwards(u8, self.buffer[self.position_body..], data);
         self.position_body += data.len;
+
+        self.set_lens();
     }
 
     pub fn write_to_header(self: *Self, data: []const u8) !void {

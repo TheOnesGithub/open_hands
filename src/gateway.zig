@@ -22,6 +22,11 @@ var message_id_buffer: [global_constants.message_wait_on_map_buffer_size]u8 = un
 var fba: std.heap.FixedBufferAllocator = undefined;
 const IO = @import("io.zig");
 
+const button = @import("components/button.zig");
+const component_login = @import("components/auth/login.zig");
+const component_index = @import("components/index.zig");
+const component_signup = @import("components/auth/signup.zig");
+
 // pub const Message_Request_Value = struct {
 //     client_message_id: uuid.UUID,
 //     conn: *httpz.websocket.Conn,
@@ -237,46 +242,6 @@ pub fn start() !void {
 fn index(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
     _ = app;
 
-    // if (app.replica.resurveAvailableFiber()) |fiber_index| {
-    //     const temp = &app.replica.messages[fiber_index][0];
-    //     const t2: *message_header.Header.Request(gateway.system) = @alignCast(@ptrCast(temp));
-    //     t2.* = message_header.Header.Request(gateway.system){
-    //         .request = 0,
-    //         .command = .request,
-    //         .client = 0,
-    //         .operation = .signup,
-    //         .cluster = 0,
-    //         .release = 0,
-    //         .message_id = uuid.UUID.v4(),
-    //     };
-    //     const header_size = @sizeOf(message_header.Header.Request(gateway.system));
-    //     const Body = Operations.BodyType(gateway.system, .signup);
-    //     var ptr_as_int = @intFromPtr(temp);
-    //     ptr_as_int = ptr_as_int + header_size;
-    //     const operation_struct: *Body = @ptrFromInt(ptr_as_int);
-    //     operation_struct.username = StackStringZig.StackString(u8, global_constants.MAX_USERNAME_LENGTH).init("username");
-    //     operation_struct.email = StackStringZig.StackString(u8, global_constants.MAX_EMAIL_LENGTH).init("email@email.com");
-    //     operation_struct.password = StackStringZig.StackString(u8, global_constants.MAX_PASSWORD_LENGTH).init("password");
-    //
-    //     const internal_message_id = uuid.UUID.v4();
-    //
-    //     app.replica.app_state_data[fiber_index] = AppState{
-    //         .client_message_id = t2.message_id,
-    //         .conn = undefined, //self.conn,
-    //         .only_return_body = false,
-    //     };
-    //
-    //     // message_id_map.put(internal_message_id, Message_Request_Value{
-    //     //     .client_message_id = recived_message.message_id,
-    //     //     .conn = self.conn,
-    //     //     .only_return_body = false,
-    //     // }) catch undefined;
-    //     t2.message_id = internal_message_id;
-    //
-    //     app.replica.message_statuses[fiber_index] = .Ready;
-    //     app.replica.push(fiber_index) catch undefined;
-    // }
-
     std.debug.print("index \r\n", .{});
     res.status = 200;
 
@@ -299,58 +264,22 @@ fn index(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
 
     writer.set_lens();
 
+    var c_login = component_login.Component{};
+    var login_ptr = c_login.get_compenent();
     if (req.header("hx-request")) |header| {
         _ = header;
-        login_callback(&writer);
+        login_ptr.render(&writer) catch {
+            return;
+        };
     } else {
-        base(&writer, login_callback) catch {
+        var c_index = component_index.Index{ .content = &login_ptr };
+        var index_ptr = c_index.get_compenent();
+        index_ptr.render(&writer) catch {
             return;
         };
     }
 
-    writer.set_lens();
-
-    // res.body = file_content;
-
     res.body = writer.buffer[4 + writer.position_header .. writer.position_body];
-}
-
-fn base(writer: *shared.BufferWriter, content_callback: fn (*shared.BufferWriter) void) !void {
-    const file_content = @embedFile("index.html");
-    const parts = comptime shared.splitOnMarkers(file_content);
-
-    writer.set_lens();
-    writer.write_to_header("this is the header") catch {
-        return;
-    };
-
-    writer.set_lens();
-
-    writer.write_to_body(parts[0]) catch {
-        return;
-    };
-
-    // writer.write_to_body(@embedFile("components/auth/login.html")) catch {
-    //     return;
-    // };
-
-    content_callback(writer);
-
-    writer.write_to_body(parts[1]) catch {
-        return;
-    };
-
-    writer.set_lens();
-
-    // res.body = file_content;
-
-}
-
-fn signup_callback(writer: *shared.BufferWriter) void {
-    writer.write_to_body(@embedFile("components/auth/signup.html")) catch {
-        return;
-    };
-    writer.set_lens();
 }
 
 fn signup(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
@@ -377,29 +306,22 @@ fn signup(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
 
     writer.set_lens();
 
+    var c_signup = component_signup.Component{};
+    var signup_ptr = c_signup.get_compenent();
     if (req.header("hx-request")) |header| {
         _ = header;
-        std.debug.print("got header request\r\n", .{});
-        signup_callback(&writer);
+        signup_ptr.render(&writer) catch {
+            return;
+        };
     } else {
-        std.debug.print("no header request\r\n", .{});
-        base(&writer, signup_callback) catch {
+        var c_index = component_index.Index{ .content = &signup_ptr };
+        var index_ptr = c_index.get_compenent();
+        index_ptr.render(&writer) catch {
             return;
         };
     }
 
-    writer.set_lens();
-
-    // res.body = file_content;
-
     res.body = writer.buffer[4 + writer.position_header .. writer.position_body];
-}
-
-fn login_callback(writer: *shared.BufferWriter) void {
-    writer.write_to_body(@embedFile("components/auth/login.html")) catch {
-        return;
-    };
-    writer.set_lens();
 }
 
 fn login(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
@@ -426,16 +348,20 @@ fn login(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
 
     writer.set_lens();
 
+    var c_login = component_login.Component{};
+    var login_ptr = c_login.get_compenent();
     if (req.header("hx-request")) |header| {
         _ = header;
-        login_callback(&writer);
+        login_ptr.render(&writer) catch {
+            return;
+        };
     } else {
-        base(&writer, login_callback) catch {
+        var c_index = component_index.Index{ .content = &login_ptr };
+        var index_ptr = c_index.get_compenent();
+        index_ptr.render(&writer) catch {
             return;
         };
     }
-
-    writer.set_lens();
 
     // res.body = file_content;
 

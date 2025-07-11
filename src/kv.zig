@@ -115,42 +115,13 @@ pub fn start() !void {
         return;
     };
 
-    router.get("/", index, .{});
-    router.get("/wasm.wasm", wasm, .{});
+    // router.get("/", index, .{});
+    // router.get("/wasm.wasm", wasm, .{});
     router.get("/ws", ws, .{});
 
     server.listen() catch {
         return;
     };
-}
-
-fn index(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
-    _ = app;
-    _ = req;
-    std.debug.print("index \r\n", .{});
-    res.status = 200;
-    const file_content = @embedFile("index.html");
-    res.body = file_content;
-}
-
-fn wasm(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
-    _ = app;
-    _ = req;
-
-    std.debug.print("wasm\r\n", .{});
-    const wasm_path = "wasm.wasm";
-    const file = try std.fs.cwd().openFile(wasm_path, .{});
-    defer file.close();
-
-    const file_size = try file.getEndPos();
-    const buffer = try res.arena.alloc(u8, file_size);
-    _ = try file.readAll(buffer);
-
-    res.status = 200;
-    res.content_type = httpz.ContentType.WASM; // ✅ This sets Content-Type header properly
-    res.body = buffer;
-
-    try res.write(); // Ensure headers and body are sent
 }
 
 fn ws(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
