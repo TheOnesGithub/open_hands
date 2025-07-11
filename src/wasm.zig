@@ -9,6 +9,12 @@ const Operations = @import("operations.zig");
 const AppState = @import("systems/client/client.zig").AppState;
 const gateway = @import("systems/gateway/gateway.zig");
 const shared = @import("shared.zig");
+const PageTimer = @import("components/tag/page/timer.zig").Component;
+const Timer = @import("components/tag/timer.zig").Component;
+const Tag = @import("components/tag/tag.zig").Component;
+const component_string = @import("components/string.zig");
+
+const ComponentVTable = @import("components/component.zig").ComponentVTable;
 
 const allocator = std.heap.wasm_allocator;
 
@@ -262,8 +268,8 @@ pub export fn updateContent() *const u8 {
         return &empty[0];
     };
 
-    const file_content = @embedFile("components/main_menu.html");
-    const parts = comptime shared.splitOnMarkers(file_content);
+    // const file_content = @embedFile("components/main_menu.html");
+    // const parts = comptime shared.splitOnMarkers(file_content);
 
     writer.set_lens();
     // writer.write_to_header("this is the header") catch {
@@ -273,35 +279,58 @@ pub export fn updateContent() *const u8 {
 
     writer.set_lens();
 
-    writer.write_to_body(parts[0]) catch {
+    // writer.write_to_body(parts[0]) catch {
+    //     const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+    //     return &empty[0];
+    // };
+    //
+    // writer.set_lens();
+    //
+    // writer.write_to_body(client.global_state.username.?.to_slice() catch {
+    //     const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+    //     return &empty[0];
+    // }) catch {
+    //     const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+    //     return &empty[0];
+    // };
+    //
+    // writer.write_to_body(parts[1]) catch {
+    //     const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+    //     return &empty[0];
+    // };
+    //
+    // writer.write_to_body(client.global_state.display_name.?.to_slice() catch {
+    //     const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+    //     return &empty[0];
+    // }) catch {
+    //     const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+    //     return &empty[0];
+    // };
+    //
+    // writer.set_lens();
+
+    var timer_name = component_string.Component{ .content = "test" };
+    var timer_name_ptr = timer_name.get_compenent();
+    var timer = Timer{ .content = &timer_name_ptr };
+    var timer_ptr = timer.get_compenent();
+    var timer_list = [_]*ComponentVTable{&timer_ptr};
+
+    var tag_name = component_string.Component{ .content = "test" };
+    var tag_name_ptr = tag_name.get_compenent();
+    var tag = Tag{ .content = &tag_name_ptr };
+    var tag_ptr = tag.get_compenent();
+    var tag_list = [_]*ComponentVTable{&tag_ptr};
+
+    var timer_page = PageTimer{
+        .timers = &timer_list,
+        .active_tags = &tag_list,
+        .saved_timers = &timer_list,
+    };
+    var timer_page_ptr = timer_page.get_compenent();
+    timer_page_ptr.render(&writer) catch {
         const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
         return &empty[0];
     };
-
-    writer.set_lens();
-
-    writer.write_to_body(client.global_state.username.?.to_slice() catch {
-        const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
-        return &empty[0];
-    }) catch {
-        const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
-        return &empty[0];
-    };
-
-    writer.write_to_body(parts[1]) catch {
-        const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
-        return &empty[0];
-    };
-
-    writer.write_to_body(client.global_state.display_name.?.to_slice() catch {
-        const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
-        return &empty[0];
-    }) catch {
-        const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
-        return &empty[0];
-    };
-
-    writer.set_lens();
 
     const addr_int: usize = @intFromPtr(writer.buffer.ptr);
     const addr: *u8 = @ptrFromInt(addr_int + writer.position_header);
