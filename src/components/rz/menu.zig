@@ -10,13 +10,12 @@ pub const Component = struct {
     pub fn render(ptr: *anyopaque, writer: *shared.BufferWriter) component_error!void {
         const self: *Self = @ptrCast(@alignCast(ptr));
 
-        const file_content = @embedFile("timer.html");
+        const file_content = @embedFile("menu.html");
         const parts = comptime shared.splitOnMarkers(file_content);
 
         writer.write_to_body(parts[0]) catch {
             return error.ComponentError;
         };
-
         try self.content.render(writer);
 
         writer.write_to_body(parts[1]) catch {

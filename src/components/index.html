@@ -3,14 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://unpkg.com
-     'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; connect-src
-     'self' wss://usethecli.com; object-src 'none'; base-uri 'self'; form-action 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self';
+            script-src 'self' https://unpkg.com https://cdn.jsdelivr.net 'unsafe-inline' 'wasm-unsafe-eval';
+            style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline';
+            connect-src 'self' wss://usethecli.com;
+            object-src 'none';
+            base-uri 'self';
+            form-action 'self';
+            ">
   <!--<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://unpkg.com
      'wasm-unsafe-eval'; style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; connect-src 'self'
      wss://usethecli.com; object-src 'none'; base-uri 'self'; form-action 'self';">-->
   <title>Login</title>
-  <script src="https://unpkg.com/htmx.org@1.9.2"></script>
+  <!-- <script src="https://unpkg.com/htmx.org@1.9.2"></script> -->
+  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.6/dist/htmx.min.js"></script>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body class="">
@@ -80,7 +86,7 @@ function print_wasm(ptr, len) {
              console.log('str: ', str);
 
             // replace the content of the element with the new content
-            element.outerHTML = str;
+            customSwap(element, str, { swapStyle: "outerHTML" });
 
               wasm.free(buffer_ptr, str_len[0] + 4);
     },
@@ -194,6 +200,50 @@ function print_wasm(ptr, len) {
         socket.onerror = (err) => {
             console.error("WebSocket error", err);
         };
+
+
+    function customSwap(targetElement, content, options = {}) {
+  // Resolve defaults
+  const {
+    swapStyle = "innerHTML",
+    ignoreTitle = false,
+    swapDelay = 0,
+    settleDelay = 20,
+    afterSwap,
+    afterSettle,
+  } = options;
+
+  // Resolve target element
+  const target = typeof targetElement === "string"
+    ? document.querySelector(targetElement)
+    : targetElement;
+
+  if (!target) {
+    console.error("Target element not found");
+    return;
+  }
+
+  // Create swap specification
+  const swapSpec = {
+    swapStyle: swapStyle,
+    ignoreTitle: ignoreTitle,
+    swapDelay: swapDelay,
+    settleDelay: settleDelay,
+  };
+
+  // Create swap options
+  const swapOptions = {
+    afterSwapCallback: afterSwap,
+    afterSettleCallback: afterSettle,
+  };
+
+  // Perform the swap using htmx's internal swap function
+  htmx.swap(target, content, swapSpec, swapOptions);
+}
+
+// Add to htmx public API
+htmx.customSwap = customSwap;
+
 
                     
   </script>

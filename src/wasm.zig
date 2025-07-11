@@ -9,10 +9,8 @@ const Operations = @import("operations.zig");
 const AppState = @import("systems/client/client.zig").AppState;
 const gateway = @import("systems/gateway/gateway.zig");
 const shared = @import("shared.zig");
-const PageTimer = @import("components/tag/page/timer.zig").Component;
-const Timer = @import("components/tag/timer.zig").Component;
-const Tag = @import("components/tag/tag.zig").Component;
 const component_string = @import("components/string.zig");
+const RzMenu = @import("components/rz/menu.zig").Component;
 
 const ComponentVTable = @import("components/component.zig").ComponentVTable;
 
@@ -256,78 +254,20 @@ pub export fn updateContent() *const u8 {
     // first 4 bytes are the length of the string
 
     const BufferSize = 50000;
-    // var buffer: [BufferSize]u8 = undefined; // fixed-size backing buffer
-
-    // const buffer_t: [BufferSize]u8 = [_]u8{0} ** BufferSize;
-    // var fba2 = std.heap.FixedBufferAllocator.init(buffer_t);
-    //
-    // const allocator_t = fba2.allocator();
 
     var writer = shared.BufferWriter.init(&allocator, BufferSize) catch {
         const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
         return &empty[0];
     };
 
-    // const file_content = @embedFile("components/main_menu.html");
-    // const parts = comptime shared.splitOnMarkers(file_content);
-
-    writer.set_lens();
-    // writer.write_to_header("this is the header") catch {
-    //     const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
-    //     return &empty[0];
-    // };
-
     writer.set_lens();
 
-    // writer.write_to_body(parts[0]) catch {
-    //     const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
-    //     return &empty[0];
-    // };
-    //
-    // writer.set_lens();
-    //
-    // writer.write_to_body(client.global_state.username.?.to_slice() catch {
-    //     const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
-    //     return &empty[0];
-    // }) catch {
-    //     const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
-    //     return &empty[0];
-    // };
-    //
-    // writer.write_to_body(parts[1]) catch {
-    //     const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
-    //     return &empty[0];
-    // };
-    //
-    // writer.write_to_body(client.global_state.display_name.?.to_slice() catch {
-    //     const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
-    //     return &empty[0];
-    // }) catch {
-    //     const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
-    //     return &empty[0];
-    // };
-    //
-    // writer.set_lens();
+    var c_battle = @import("components/rz/pages/battle.zig").Component{};
+    var battle_ptr = c_battle.get_compenent();
 
-    var timer_name = component_string.Component{ .content = "test" };
-    var timer_name_ptr = timer_name.get_compenent();
-    var timer = Timer{ .content = &timer_name_ptr };
-    var timer_ptr = timer.get_compenent();
-    var timer_list = [_]*ComponentVTable{&timer_ptr};
-
-    var tag_name = component_string.Component{ .content = "test" };
-    var tag_name_ptr = tag_name.get_compenent();
-    var tag = Tag{ .content = &tag_name_ptr };
-    var tag_ptr = tag.get_compenent();
-    var tag_list = [_]*ComponentVTable{&tag_ptr};
-
-    var timer_page = PageTimer{
-        .timers = &timer_list,
-        .active_tags = &tag_list,
-        .saved_timers = &timer_list,
-    };
-    var timer_page_ptr = timer_page.get_compenent();
-    timer_page_ptr.render(&writer) catch {
+    var rz_menu = RzMenu{ .content = &battle_ptr };
+    var rz_menu_ptr = rz_menu.get_compenent();
+    rz_menu_ptr.render(&writer) catch {
         const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
         return &empty[0];
     };
@@ -335,12 +275,75 @@ pub export fn updateContent() *const u8 {
     const addr_int: usize = @intFromPtr(writer.buffer.ptr);
     const addr: *u8 = @ptrFromInt(addr_int + writer.position_header);
     return addr;
+}
 
-    // const str = @embedFile("components/main_menu.html");
-    // const len: u32 = @intCast(str.len);
-    // const ptr = allocator.alloc(u8, len + 4) catch unreachable;
-    // const len2: *u32 = @alignCast(@ptrCast(ptr.ptr));
-    // len2.* = len;
-    // std.mem.copyForwards(u8, ptr[4 .. len + 4], str);
-    // return @ptrCast(ptr.ptr);
+pub export fn set_menu(index_left_to_right: u8) *const u8 {
+    const BufferSize = 50000;
+
+    var writer = shared.BufferWriter.init(&allocator, BufferSize) catch {
+        const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+        return &empty[0];
+    };
+
+    writer.set_lens();
+
+    switch (index_left_to_right) {
+        4 => {
+            var home = @import("components/rz/pages/home.zig").Component{
+                .username = client.global_state.username.?.to_slice() catch {
+                    const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+                    return &empty[0];
+                },
+                .display_name = client.global_state.display_name.?.to_slice() catch {
+                    const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+                    return &empty[0];
+                },
+            };
+            var home_ptr = home.get_compenent();
+            home_ptr.render(&writer) catch {
+                const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+                return &empty[0];
+            };
+        },
+        1 => {
+            var cards = @import("components/rz/pages/cards.zig").Component{};
+            var cards_ptr = cards.get_compenent();
+            cards_ptr.render(&writer) catch {
+                const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+                return &empty[0];
+            };
+        },
+        2 => {
+            var battle = @import("components/rz/pages/battle.zig").Component{};
+            var battle_ptr = battle.get_compenent();
+            battle_ptr.render(&writer) catch {
+                const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+                return &empty[0];
+            };
+        },
+        3 => {
+            var clan = @import("components/rz/pages/clan.zig").Component{};
+            var clan_ptr = clan.get_compenent();
+            clan_ptr.render(&writer) catch {
+                const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+                return &empty[0];
+            };
+        },
+        0 => {
+            var shop = @import("components/rz/pages/shop.zig").Component{};
+            var shop_ptr = shop.get_compenent();
+            shop_ptr.render(&writer) catch {
+                const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+                return &empty[0];
+            };
+        },
+        else => {
+            const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+            return &empty[0];
+        },
+    }
+
+    const addr_int: usize = @intFromPtr(writer.buffer.ptr);
+    const addr: *u8 = @ptrFromInt(addr_int + writer.position_header);
+    return addr;
 }
