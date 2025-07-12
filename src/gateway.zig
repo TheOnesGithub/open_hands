@@ -235,6 +235,8 @@ pub fn start() !void {
     router.get("/login", login, .{});
     router.get("/webgpu", webgpu, .{});
     router.get("/webgpu/wasm.wasm", webgpu_wasm, .{});
+    router.get("/vertex.wgsl", vertex_wgsl, .{});
+    router.get("/fragment.wgsl", fragment_wgsl, .{});
 
     server.listen() catch {
         return;
@@ -511,6 +513,32 @@ fn webgpu_wasm(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
     res.status = 200;
     res.content_type = httpz.ContentType.WASM; // ✅ This sets Content-Type header properly
     res.body = buffer;
+
+    try res.write(); // Ensure headers and body are sent
+}
+
+fn vertex_wgsl(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
+    _ = app;
+    _ = req;
+
+    std.debug.print("vertex_wgsl\r\n", .{});
+    const file_content = @embedFile("vertex.wgsl");
+
+    res.status = 200;
+    res.body = file_content;
+
+    try res.write(); // Ensure headers and body are sent
+}
+
+fn fragment_wgsl(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
+    _ = app;
+    _ = req;
+
+    std.debug.print("fragment_wgsl\r\n", .{});
+    const file_content = @embedFile("fragment.wgsl");
+
+    res.status = 200;
+    res.body = file_content;
 
     try res.write(); // Ensure headers and body are sent
 }
