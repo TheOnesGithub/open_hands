@@ -237,6 +237,8 @@ pub fn start() !void {
     router.get("/webgpu/wasm.wasm", webgpu_wasm, .{});
     router.get("/vertex.wgsl", vertex_wgsl, .{});
     router.get("/fragment.wgsl", fragment_wgsl, .{});
+    // router.get("/texture.js", texture_js, .{});
+    router.get("/egg.png", egg_png, .{});
 
     server.listen() catch {
         return;
@@ -538,6 +540,34 @@ fn fragment_wgsl(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
     const file_content = @embedFile("game/fragment.wgsl");
 
     res.status = 200;
+    res.body = file_content;
+
+    try res.write(); // Ensure headers and body are sent
+}
+
+// fn texture_js(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
+//     _ = app;
+//     _ = req;
+//
+//     std.debug.print("texture_js\r\n", .{});
+//     const file_content = @embedFile("game/texture.js");
+//
+//     res.status = 200;
+//     res.content_type = httpz.ContentType.JS; // ✅ This sets Content-Type header properly
+//     res.body = file_content;
+//
+//     try res.write(); // Ensure headers and body are sent
+// }
+
+fn egg_png(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
+    _ = app;
+    _ = req;
+
+    std.debug.print("egg_png\r\n", .{});
+    const file_content = @embedFile("game/egg.png");
+
+    res.status = 200;
+    res.content_type = httpz.ContentType.PNG; // Set content type for PNG
     res.body = file_content;
 
     try res.write(); // Ensure headers and body are sent

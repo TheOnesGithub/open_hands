@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WebGPU Triangle</title>
+    <title>WebGPU Quad</title>
     <style>
         html, body {
             margin: 0;
@@ -17,7 +17,27 @@
 </head>
 <body>
     <canvas id="webgpu-canvas"></canvas>
+    <!-- <script src="texture.js"></script> -->
     <script>
+        async function createTexture(device, url) {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const imageData = await createImageBitmap(blob);
+
+            const texture = device.createTexture({
+                size: [imageData.width, imageData.height, 1],
+                format: 'rgba8unorm',
+                usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+            });
+
+            device.queue.copyExternalImageToTexture(
+                { source: imageData },
+                { texture: texture },
+                [imageData.width, imageData.height]
+            );
+
+            return texture;
+        }
         async function main() {
             const canvas = document.getElementById('webgpu-canvas');
             if (!navigator.gpu) {
@@ -62,30 +82,75 @@
             const fsCode = await fsResponse.text();
             const fragmentShaderModule = device.createShaderModule({ code: fsCode });
 
+            const texture = await createTexture(device, 'egg.png');
+
+            const sampler = device.createSampler({
+                magFilter: 'linear',
+                minFilter: 'linear',
+            });
+
+            const bindGroupLayout = device.createBindGroupLayout({
+                entries: [
+                    {
+                        binding: 0,
+                        visibility: GPUShaderStage.FRAGMENT,
+                        sampler: {},
+                    },
+                    {
+                        binding: 1,
+                        visibility: GPUShaderStage.FRAGMENT,
+                        texture: {},
+                    },
+                ],
+            });
+
+            const bindGroup = device.createBindGroup({
+                layout: bindGroupLayout,
+                entries: [
+                    {
+                        binding: 0,
+                        resource: sampler,
+                    },
+                    {
+                        binding: 1,
+                        resource: texture.createView(),
+                    },
+                ],
+            });
+
+            const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [bindGroupLayout] });
+
             const pipeline = device.createRenderPipeline({
-                layout: device.createPipelineLayout({ bindGroupLayouts: [] }),
+                layout: pipelineLayout,
                 vertex: {
                     module: vertexShaderModule,
                     entryPoint: 'vs_main',
                     buffers: [{
-                        arrayStride: 3 * 4, // 3 floats, 4 bytes each
-                        attributes: [{
-                            shaderLocation: 0,
-                            offset: 0,
-                            format: 'float32x3'
-                        }]
-                    }]
+                        arrayStride: 5 * 4, // 5 floats, 4 bytes each
+                        attributes: [
+                            {
+                                shaderLocation: 0,
+                                offset: 0,
+                                format: 'float32x3',
+                            },
+                            {
+                                shaderLocation: 1,
+                                offset: 3 * 4,
+                                format: 'float32x2',
+                            },
+                        ],
+                    }],
                 },
                 fragment: {
                     module: fragmentShaderModule,
                     entryPoint: 'fs_main',
                     targets: [{
-                        format: presentationFormat
-                    }]
+                        format: presentationFormat,
+                    }],
                 },
                 primitive: {
-                    topology: 'triangle-list'
-                }
+                    topology: 'triangle-list',
+                },
             });
 
             function frame() {
@@ -96,14 +161,15 @@
                         view: textureView,
                         clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
                         loadOp: 'clear',
-                        storeOp: 'store'
-                    }]
+                        storeOp: 'store',
+                    }],
                 };
 
                 const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
                 passEncoder.setPipeline(pipeline);
+                passEncoder.setBindGroup(0, bindGroup);
                 passEncoder.setVertexBuffer(0, vertexBuffer);
-                passEncoder.draw(3, 1, 0, 0);
+                passEncoder.draw(6, 1, 0, 0);
                 passEncoder.end();
 
                 device.queue.submit([commandEncoder.finish()]);

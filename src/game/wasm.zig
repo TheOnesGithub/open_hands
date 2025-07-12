@@ -16,7 +16,15 @@ pub export fn free(ptr: [*]u8, len: usize) void {
 
 pub export fn tick() void {}
 
-const vertices: []const f32 = &.{0.0, 0.5, 0.0, -0.5, -0.5, 0.0, 0.5, -0.5, 0.0};
+const vertices: []const f32 = &.{// x,    y,   z,    u,   v
+    -0.5, -0.5, 0.0,  0.0, 1.0,
+     0.5, -0.5, 0.0,  1.0, 1.0,
+     0.5,  0.5, 0.0,  1.0, 0.0,
+
+    -0.5, -0.5, 0.0,  0.0, 1.0,
+     0.5,  0.5, 0.0,  1.0, 0.0,
+    -0.5,  0.5, 0.0,  0.0, 0.0,
+};
 
 pub export fn get_vertex_data() [*]const f32 {
     return vertices.ptr;
