@@ -233,6 +233,8 @@ pub fn start() !void {
     router.get("/ws", ws, .{});
     router.get("/signup", signup, .{});
     router.get("/login", login, .{});
+    router.get("/webgpu", webgpu, .{});
+    router.get("/webgpu/wasm.wasm", webgpu_wasm, .{});
 
     server.listen() catch {
         return;
@@ -478,4 +480,37 @@ fn temp_return(app_state: AppState, message: []align(16) u8) void {
             std.debug.assert(false);
         };
     }
+}
+
+fn webgpu(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
+    _ = app;
+    _ = req;
+
+    std.debug.print("webgpu\r\n", .{});
+    const file_content = @embedFile("webgpu.html");
+
+    res.status = 200;
+    res.body = file_content;
+
+    try res.write(); // Ensure headers and body are sent
+}
+
+fn webgpu_wasm(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
+    _ = app;
+    _ = req;
+
+    std.debug.print("webgpu_wasm\r\n", .{});
+    const wasm_path = "gamewasm_.wasm";
+    const file = try std.fs.cwd().openFile(wasm_path, .{});
+    defer file.close();
+
+    const file_size = try file.getEndPos();
+    const buffer = try res.arena.alloc(u8, file_size);
+    _ = try file.readAll(buffer);
+
+    res.status = 200;
+    res.content_type = httpz.ContentType.WASM; // ✅ This sets Content-Type header properly
+    res.body = buffer;
+
+    try res.write(); // Ensure headers and body are sent
 }
