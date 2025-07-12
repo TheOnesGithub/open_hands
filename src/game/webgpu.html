@@ -40,11 +40,12 @@
                 format: presentationFormat,
             });
 
-            const vertices = new Float32Array([
-                0.0,  0.5, 0.0,
-               -0.5, -0.5, 0.0,
-                0.5, -0.5, 0.0
-            ]);
+            const wasm = await WebAssembly.instantiateStreaming(fetch('/webgpu/wasm.wasm'));
+            const { get_vertex_data, get_vertex_data_len, memory } = wasm.instance.exports;
+
+            const verticesPtr = get_vertex_data();
+            const verticesLen = get_vertex_data_len();
+            const vertices = new Float32Array(memory.buffer, verticesPtr, verticesLen);
 
             const vertexBuffer = device.createBuffer({
                 size: vertices.byteLength,

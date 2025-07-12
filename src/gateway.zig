@@ -489,7 +489,7 @@ fn webgpu(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
     _ = req;
 
     std.debug.print("webgpu\r\n", .{});
-    const file_content = @embedFile("webgpu.html");
+    const file_content = @embedFile("game/webgpu.html");
 
     res.status = 200;
     res.body = file_content;
@@ -502,7 +502,7 @@ fn webgpu_wasm(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
     _ = req;
 
     std.debug.print("webgpu_wasm\r\n", .{});
-    const wasm_path = "gamewasm_.wasm";
+    const wasm_path = "wasmgame_.wasm";
     const file = try std.fs.cwd().openFile(wasm_path, .{});
     defer file.close();
 
@@ -522,7 +522,7 @@ fn vertex_wgsl(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
     _ = req;
 
     std.debug.print("vertex_wgsl\r\n", .{});
-    const file_content = @embedFile("vertex.wgsl");
+    const file_content = @embedFile("game/vertex.wgsl");
 
     res.status = 200;
     res.body = file_content;
@@ -535,7 +535,7 @@ fn fragment_wgsl(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
     _ = req;
 
     std.debug.print("fragment_wgsl\r\n", .{});
-    const file_content = @embedFile("fragment.wgsl");
+    const file_content = @embedFile("game/fragment.wgsl");
 
     res.status = 200;
     res.body = file_content;
