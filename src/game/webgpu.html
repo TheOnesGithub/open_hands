@@ -61,7 +61,8 @@
             });
 
             const wasm = await WebAssembly.instantiateStreaming(fetch('/webgpu/wasm.wasm'));
-            const { get_vertex_data, get_vertex_data_len, memory } = wasm.instance.exports;
+            const { get_vertex_data, get_vertex_data_len, memory, init } = wasm.instance.exports;
+            init();
 
             const verticesPtr = get_vertex_data();
             const verticesLen = get_vertex_data_len();
