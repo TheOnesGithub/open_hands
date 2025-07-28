@@ -78,6 +78,7 @@ pub fn SystemType() type {
         pub const Operation = enum(u8) {
             signup_client = 0,
             login_client = 1,
+            add_timer = 2,
         };
 
         pub const operations = struct {
@@ -92,7 +93,8 @@ pub fn SystemType() type {
                     is_has_ran: bool = false,
                     signup_result: system_gateway.operations.signup.Result = .{ .is_signed_up_successfully = false },
                 };
-                pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State) replica.Handled_Status {
+                pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State, connection_state: *anyopaque) replica.Handled_Status {
+                    _ = connection_state;
                     _ = self;
                     const repd: *Replica = @alignCast(@ptrCast(rep));
                     _ = result;
@@ -134,7 +136,8 @@ pub fn SystemType() type {
                         .username = undefined,
                     },
                 };
-                pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State) replica.Handled_Status {
+                pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State, connection_state: *anyopaque) replica.Handled_Status {
+                    _ = connection_state;
                     _ = self;
                     const repd: *Replica = @alignCast(@ptrCast(rep));
                     _ = result;
@@ -187,6 +190,43 @@ pub fn SystemType() type {
                     state.is_has_ran = true;
                     const ran_check = "ran wait check";
                     print_wasm(ran_check, ran_check.len);
+                    return .wait;
+                }
+            };
+
+            pub const add_timer = struct {
+                pub const Body = struct {
+                    name: StackStringZig.StackString(u8, global_constants.MAX_USERNAME_LENGTH),
+                    duration: u32,
+                };
+                pub const Result = struct {};
+                pub const State = struct {
+                    is_has_ran: bool = false,
+                    add_timer_result: system_gateway.operations.add_timer.Result = .{ .is_added_successfully = false },
+                };
+                pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State, connection_state: *anyopaque) replica.Handled_Status {
+                    _ = connection_state;
+                    _ = self;
+                    const repd: *Replica = @alignCast(@ptrCast(rep));
+                    _ = result;
+                    if (state.is_has_ran) {
+                        return .done;
+                    }
+                    const add_message_id = repd.call_remote(
+                        system_gateway,
+                        .add_timer,
+                        system_gateway.operations.add_timer.Body{
+                            .name = body.name,
+                            .duration = body.duration,
+                        },
+                        &state.add_timer_result,
+                    ) catch {
+                        const temp = "failed to call kv\r\n";
+                        print_wasm(temp.ptr, temp.len);
+                        return .done;
+                    };
+                    repd.add_wait(&add_message_id);
+                    state.is_has_ran = true;
                     return .wait;
                 }
             };

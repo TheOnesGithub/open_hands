@@ -129,6 +129,44 @@ pub export fn signup(
     }
 }
 
+export fn add_timer(
+    name_ptr: [*]const u8,
+    name_len: usize,
+    duration: u32,
+) void {
+    if (name_len > global_constants.MAX_USERNAME_LENGTH) {
+        return;
+    }
+    // if (duration ...)
+
+    const name_str = name_ptr[0..name_len];
+    const name = stack_string.StackString(u8, global_constants.MAX_USERNAME_LENGTH).init(name_str);
+
+    if (replica.resurveAvailableFiber()) |fiber_index| {
+        const temp = &replica.messages[fiber_index][0];
+        const t2: *message_header.Header.Request(client.system) = @constCast(@alignCast(@ptrCast(temp)));
+        t2.* = message_header.Header.Request(client.system){
+            .request = 0,
+            .command = .request,
+            .client = 0,
+            .operation = .add_timer,
+            .cluster = 0,
+            .release = 0,
+            .message_id = uuid.UUID.v4(),
+        };
+        const header_size = @sizeOf(message_header.Header.Request(client.system));
+        const Body = Operations.BodyType(client.system, .add_timer);
+        var ptr_as_int = @intFromPtr(temp);
+        ptr_as_int = ptr_as_int + header_size;
+        const operation_struct: *Body = @ptrFromInt(ptr_as_int);
+        operation_struct.name = name;
+        operation_struct.duration = duration;
+
+        replica.message_statuses[fiber_index] = .Ready;
+        replica.push(fiber_index) catch undefined;
+    }
+}
+
 export fn login(
     email_ptr: [*]const u8,
     email_len: usize,
@@ -333,6 +371,14 @@ pub export fn set_menu(index_left_to_right: u8) *const u8 {
             var shop = @import("components/rz/pages/shop.zig").Component{};
             var shop_ptr = shop.get_compenent();
             shop_ptr.render(&writer) catch {
+                const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+                return &empty[0];
+            };
+        },
+        5 => {
+            var add_timer_component = @import("components/rz/pages/add_timer.zig").Component{};
+            var add_timer_ptr = add_timer_component.get_compenent();
+            add_timer_ptr.render(&writer) catch {
                 const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
                 return &empty[0];
             };

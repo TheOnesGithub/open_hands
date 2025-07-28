@@ -397,7 +397,7 @@ fn ws(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
     // Could do authentication or anything else before upgrading the connection
     // The context is any arbitrary data you want to pass to Client.init.
     const ctx = Client.Context{
-        .user_id = 9001,
+        .user_id = null,
         .app = app,
     };
 
@@ -412,12 +412,12 @@ fn ws(app: *App, req: *httpz.Request, res: *httpz.Response) !void {
 }
 
 const Client = struct {
-    user_id: u32,
+    user_id: ?uuid.UUID,
     conn: *websocket.Conn,
     app: *App,
 
     const Context = struct {
-        user_id: u32,
+        user_id: ?uuid.UUID,
         app: *App,
     };
 
@@ -454,6 +454,7 @@ const Client = struct {
                 .client_message_id = recived_message.message_id,
                 .conn = self.conn,
                 .only_return_body = false,
+                .user_id = &self.user_id,
             };
             // message_id_map.put(internal_message_id, Message_Request_Value{
             //     .client_message_id = recived_message.message_id,

@@ -48,7 +48,8 @@ pub fn SystemType(comptime SystemDataType: type) type {
                     value: StackStringZig.StackString(u32, global_constants.max_value_length),
                 };
                 pub const State = struct {};
-                pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State) replica.Handled_Status {
+                pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State, connection_state: *anyopaque) replica.Handled_Status {
+                    _ = connection_state;
                     _ = rep;
                     _ = state;
                     std.debug.print("read attempt: {}\r\n", .{body.*.key});
@@ -99,7 +100,8 @@ pub fn SystemType(comptime SystemDataType: type) type {
                     success: bool,
                 };
                 pub const State = struct {};
-                pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State) replica.Handled_Status {
+                pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State, connection_state: *anyopaque) replica.Handled_Status {
+                    _ = connection_state;
                     _ = rep;
                     _ = state;
 

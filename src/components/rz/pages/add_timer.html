@@ -1,0 +1,45 @@
+<div>
+    <h1>Add Timer</h1>
+    <form id="add-timer-form">
+        <label for="timerName">Timer Name:</label><br>
+        <input type="text" id="timerName" name="timerName"><br>
+        <label for="timerDuration">Duration (in seconds):</label><br>
+        <input type="number" id="timerDuration" name="timerDuration"><br><br>
+        <input type="submit" value="Add Timer">
+    </form>
+    <button onclick="setMenu(4)">Exit</button>
+</div>
+
+<script>
+  {
+
+    
+
+    const form = document.getElementById("add-timer-form");
+      console.log("ran add timer listener");
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+          console.log("ran add timer");
+
+    const timerName = document.getElementById("timerName").value;
+    const timerDuration = document.getElementById("timerDuration").value;
+
+      const encoder = new TextEncoder();
+      const timerNameBytes = encoder.encode(timerName);
+      const timerDurationBytes = encoder.encode(timerDuration);
+
+      const timerNamePtr = wasm.alloc(timerNameBytes.length);
+      const timerDurationPtr = wasm.alloc(timerDurationBytes.length);
+
+      new Uint8Array(memory.buffer, timerNamePtr, timerNameBytes.length).set(timerNameBytes);
+      new Uint8Array(memory.buffer, timerDurationPtr, timerDurationBytes.length).set(timerDurationBytes);
+
+      wasm.add_timer(timerNamePtr, timerNameBytes.length, timerDurationPtr, timerDurationBytes.length);
+
+      wasm.free(timerNamePtr, timerNameBytes.length);
+      wasm.free(timerDurationPtr, timerDurationBytes.length);
+    });
+
+}
+
+</script>

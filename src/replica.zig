@@ -234,6 +234,7 @@ pub fn ReplicaType(
                                     @alignCast(&self.messages[idx]),
                                     @constCast(r),
                                     @alignCast(&self.messages_state[idx]),
+                                    &self.app_state_data[idx],
                                 );
 
                                 if (hs == .not_done) {
@@ -438,6 +439,7 @@ pub fn ReplicaType(
             message_body_used: *align(16) [message_size_max]u8,
             res: *Operations.ResultType(System, operation),
             message_state: *align(16) [message_size_max]u8,
+            connection_state: *anyopaque,
         ) Handled_Status {
             // _ = self;
             // comptime assert(!operation_is_multi_batch(operation));
@@ -454,7 +456,7 @@ pub fn ReplicaType(
 
             const state: *State = @ptrCast(message_state);
 
-            return Call(self.system, self, operation_struct, res, state);
+            return Call(self.system, self, operation_struct, res, state, connection_state);
         }
     };
 }

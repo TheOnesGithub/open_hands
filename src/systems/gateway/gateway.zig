@@ -10,6 +10,7 @@ pub const AppState = struct {
     client_message_id: uuid.UUID,
     conn: *httpz.websocket.Conn,
     only_return_body: bool,
+    user_id: *?uuid.UUID,
 };
 
 pub const remote_services = [_]replica.RemoteService{
@@ -87,6 +88,7 @@ pub fn SystemType() type {
         pub const Operation = enum(u8) {
             signup = 1,
             login = 2,
+            add_timer = 3,
         };
 
         pub const operations = struct {
@@ -104,7 +106,8 @@ pub fn SystemType() type {
                     kv_result_email_auth: system_kv.operations.write.Result = .{ .success = false },
                     kv_result_created_user: system_kv.operations.write.Result = .{ .success = false },
                 };
-                pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State) replica.Handled_Status {
+                pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State, connection_state: *anyopaque) replica.Handled_Status {
+                    _ = connection_state;
                     _ = self;
                     std.debug.print("user is trying to signup\r\n", .{});
                     const repd: *Replica = @alignCast(@ptrCast(rep));
@@ -231,7 +234,7 @@ pub fn SystemType() type {
                     is_has_ran_get_user_profile: bool = false,
                     kv_result_user_profile: system_kv.operations.read.Result,
                 };
-                pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State) replica.Handled_Status {
+                pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State, connection_state: *anyopaque) replica.Handled_Status {
                     _ = self;
                     std.debug.print("user is trying to login\r\n", .{});
                     // send a message to the database server to check if the username and password are correct
@@ -301,8 +304,10 @@ pub fn SystemType() type {
                             result.*.user_id = value_casted.user_id;
                             result.*.display_name = value_casted_user_profile_casted.display_name;
                             result.*.username = value_casted_user_profile_casted.username;
+                            const connection_state_data: *AppState = @alignCast(@ptrCast(connection_state));
+                            connection_state_data.user_id.* = result.*.user_id;
 
-                            std.debug.print("result.*.user_id: {any}\r\n", .{result});
+                            std.debug.print("result.*.user_id: {any}\r\n", .{result.*.user_id});
                         }
 
                         return .done;
@@ -329,6 +334,68 @@ pub fn SystemType() type {
                     state.is_has_ran = true;
                     std.debug.print("added login wait\r\n", .{});
                     return .wait;
+                }
+            };
+
+            pub const add_timer = struct {
+                pub const Body = extern struct {
+                    name: StackStringZig.StackString(u8, global_constants.MAX_USERNAME_LENGTH),
+                    duration: u32,
+                };
+                pub const Result = extern struct {
+                    is_added_successfully: bool,
+                };
+                pub const State = struct {
+                    is_has_ran: bool = false,
+                    add_timer_result: system_kv.operations.write.Result = .{ .success = false },
+                };
+                pub fn call(
+                    self: *System,
+                    rep: *anyopaque,
+                    body: *Body,
+                    result: *Result,
+                    state: *State,
+                    connection_state: *anyopaque,
+                ) replica.Handled_Status {
+                    _ = self;
+                    const connection_state_data: *AppState = @alignCast(@ptrCast(connection_state));
+                    std.debug.print("user is trying to add timer user_id: {any}\r\n", .{connection_state_data.user_id.*});
+                    _ = result;
+                    _ = state;
+                    _ = body;
+                    _ = rep;
+                    return .done;
+                    // std.debug.print("user is trying to add timer\r\n", .{});
+                    // const repd: *Replica = @alignCast(@ptrCast(rep));
+                    // if (state.is_has_ran) {
+                    //     std.debug.print("state machine back after add timer\r\n", .{});
+                    //     return .done;
+                    // }
+                    // var add_message_id = repd.call_remote(
+                    //     system_kv,
+                    //     .write,
+                    //     .{
+                    //         // user_id + timer_name
+                    //         .key = StackStringZig.StackString(u16, global_constants.max_key_length).init(
+                    //             body.name.to_slice() catch |err| {
+                    //                 std.debug.print("failed to get from stack string: {s}\r\n", .{@errorName(err)});
+                    //                 return .done;
+                    //             },
+                    //         ),
+                    //         .value = StackStringZig.StackString(u32, global_constants.max_value_length).init(std.mem.asBytes(&Timer{
+                    //             .duration = body.duration,
+                    //         })),
+                    //     },
+                    //     &state.add_timer_result,
+                    // ) catch {
+                    //     std.debug.print("failed to call kv\r\n", .{});
+                    //     return .done;
+                    // };
+                    //
+                    // repd.add_wait(&add_message_id);
+                    // state.is_has_ran = true;
+                    // std.debug.print("added timer wait\r\n", .{});
+                    // return .wait;
                 }
             };
         };

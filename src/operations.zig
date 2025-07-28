@@ -22,6 +22,7 @@ pub fn CallType(comptime Operations: type, comptime operation: Operations.Operat
     *BodyType(Operations, operation),
     *ResultType(Operations, operation),
     *StateType(Operations, operation),
+    *anyopaque,
 ) replica.Handled_Status {
     return @field(Operations.operations, @tagName(operation)).call;
 }
