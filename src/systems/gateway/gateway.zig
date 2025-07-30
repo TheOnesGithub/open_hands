@@ -80,6 +80,11 @@ const LoginAttempt = extern struct {
     // auth_type: enum { email},
 };
 
+pub const Timer = extern struct {
+    name: StackStringZig.StackString(u8, global_constants.MAX_USERNAME_LENGTH),
+    duration: u32,
+};
+
 pub const system = SystemType();
 pub fn SystemType() type {
     return struct {
@@ -89,6 +94,7 @@ pub fn SystemType() type {
             signup = 1,
             login = 2,
             add_timer = 3,
+            get_all_timers = 4,
         };
 
         pub const operations = struct {
@@ -105,14 +111,17 @@ pub fn SystemType() type {
                     is_has_ran: bool = false,
                     kv_result_email_auth: system_kv.operations.write.Result = .{ .success = false },
                     kv_result_created_user: system_kv.operations.write.Result = .{ .success = false },
+                    new_user_id: ?uuid.UUID = null,
                 };
                 pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State, connection_state: *anyopaque) replica.Handled_Status {
-                    _ = connection_state;
                     _ = self;
                     std.debug.print("user is trying to signup\r\n", .{});
                     const repd: *Replica = @alignCast(@ptrCast(rep));
                     if (state.is_has_ran) {
                         std.debug.print("state machine back after signup\r\n", .{});
+                        const connection_state_data: *AppState = @alignCast(@ptrCast(connection_state));
+                        connection_state_data.user_id.* = state.new_user_id;
+
                         result.*.is_signed_up_successfully = state.kv_result_email_auth.success;
                         return .done;
                     }
@@ -151,7 +160,7 @@ pub fn SystemType() type {
                     };
 
                     const current_time = std.time.milliTimestamp();
-                    const new_user_id = uuid.UUID.v4();
+                    state.new_user_id = uuid.UUID.v4();
                     var add_message_id = repd.call_remote(
                         system_kv,
                         .write,
@@ -163,7 +172,7 @@ pub fn SystemType() type {
                                 },
                             ),
                             .value = StackStringZig.StackString(u32, global_constants.max_value_length).init(std.mem.asBytes(&EmailAuth{
-                                .user_id = new_user_id,
+                                .user_id = state.new_user_id.?,
                                 .hash = StackStringZig.StackString(u8, global_constants.PASSWORD_HASH_LENGTH).init(hash_str),
                                 .is_verified = false,
                                 .meta = .{
@@ -180,7 +189,7 @@ pub fn SystemType() type {
                     };
                     repd.add_wait(&add_message_id);
                     var key_user_profile = StackStringZig.StackString(u16, global_constants.max_key_length).init("user_profile");
-                    key_user_profile.append(&new_user_id.bin) catch {
+                    key_user_profile.append(&state.new_user_id.?.bin) catch {
                         std.debug.print("failed to append to key\r\n", .{});
                         return .done;
                     };
@@ -361,41 +370,75 @@ pub fn SystemType() type {
                     const connection_state_data: *AppState = @alignCast(@ptrCast(connection_state));
                     std.debug.print("user is trying to add timer user_id: {any}\r\n", .{connection_state_data.user_id.*});
                     _ = result;
-                    _ = state;
-                    _ = body;
+                    std.debug.print("user is trying to add timer\r\n", .{});
+                    if (connection_state_data.user_id.* == null) {
+                        std.debug.print("user is trying to add timer no user id\r\n", .{});
+                        return .done;
+                    }
+                    const repd: *Replica = @alignCast(@ptrCast(rep));
+                    if (state.is_has_ran) {
+                        std.debug.print("state machine back after add timer\r\n", .{});
+                        return .done;
+                    }
+
+                    //                                 connection_state_data.user_id.*  to stack string
+                    var key = StackStringZig.StackString(u16, global_constants.max_key_length).init(
+                        "Timer",
+                    );
+                    key.append(&connection_state_data.user_id.*.?.bin) catch {
+                        std.debug.print("failed to append to key\r\n", .{});
+                        return .done;
+                    };
+                    key.append(body.name.to_slice() catch |err| {
+                        std.debug.print("failed to get from stack string: {s}\r\n", .{@errorName(err)});
+                        return .done;
+                    }) catch {
+                        std.debug.print("failed to append to key\r\n", .{});
+                        return .done;
+                    };
+                    var add_message_id = repd.call_remote(
+                        system_kv,
+                        .write,
+                        .{
+                            // user_id + timer_name
+                            .key = key,
+                            .value = StackStringZig.StackString(u32, global_constants.max_value_length).init(std.mem.asBytes(&Timer{
+                                .name = body.name,
+                                .duration = body.duration,
+                            })),
+                        },
+                        &state.add_timer_result,
+                    ) catch {
+                        std.debug.print("failed to call kv\r\n", .{});
+                        return .done;
+                    };
+
+                    repd.add_wait(&add_message_id);
+                    state.is_has_ran = true;
+                    std.debug.print("added timer wait\r\n", .{});
+                    return .wait;
+                }
+            };
+
+            pub const get_all_timers = struct {
+                pub const Body = extern struct {};
+                pub const Result = extern struct {
+                    // Timers
+                };
+                pub const State = struct {
+                    is_has_ran: bool = false,
+                };
+
+                pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State) replica.Handled_Status {
+                    _ = self;
                     _ = rep;
+                    _ = body;
+                    _ = result;
+                    _ = state;
+
+                    std.debug.print("get all timers\r\n", .{});
+
                     return .done;
-                    // std.debug.print("user is trying to add timer\r\n", .{});
-                    // const repd: *Replica = @alignCast(@ptrCast(rep));
-                    // if (state.is_has_ran) {
-                    //     std.debug.print("state machine back after add timer\r\n", .{});
-                    //     return .done;
-                    // }
-                    // var add_message_id = repd.call_remote(
-                    //     system_kv,
-                    //     .write,
-                    //     .{
-                    //         // user_id + timer_name
-                    //         .key = StackStringZig.StackString(u16, global_constants.max_key_length).init(
-                    //             body.name.to_slice() catch |err| {
-                    //                 std.debug.print("failed to get from stack string: {s}\r\n", .{@errorName(err)});
-                    //                 return .done;
-                    //             },
-                    //         ),
-                    //         .value = StackStringZig.StackString(u32, global_constants.max_value_length).init(std.mem.asBytes(&Timer{
-                    //             .duration = body.duration,
-                    //         })),
-                    //     },
-                    //     &state.add_timer_result,
-                    // ) catch {
-                    //     std.debug.print("failed to call kv\r\n", .{});
-                    //     return .done;
-                    // };
-                    //
-                    // repd.add_wait(&add_message_id);
-                    // state.is_has_ran = true;
-                    // std.debug.print("added timer wait\r\n", .{});
-                    // return .wait;
                 }
             };
         };

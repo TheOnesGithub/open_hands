@@ -10,6 +10,7 @@ pub const Component = struct {
     const Self = @This();
     username: []const u8,
     display_name: []const u8,
+    timers: []*@import("../../../systems/gateway/gateway.zig").Timer,
     // timers: []*ComponentVTable,
     // active_tags: []*ComponentVTable,
     // saved_timers: []*ComponentVTable,
