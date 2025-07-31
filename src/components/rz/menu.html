@@ -147,20 +147,21 @@
       window.setMenu = function(menu) {
         console.log("setMenu", menu);
 
-          const buffer_ptr = wasm.set_menu(menu);
-            const str_len = new Uint32Array(memory.buffer, buffer_ptr, 1);
-            console.log('str_len: ', str_len);
-             const str_buf = new Uint8Array(memory.buffer, buffer_ptr + 4, str_len[0]);
-            console.log('str_buf: ', str_buf);
- 
-             const str = new TextDecoder().decode(str_buf);
-             console.log('str: ', str);
-
-            const menu_container = document.getElementById("menu-container");
-            // replace the content of the element with the new content
-          customSwap(menu_container, str, { swapStyle: "innerHTML" });
-
-              wasm.free(buffer_ptr, str_len[0] + 4);
+            wasm.set_menu(menu);
+          // const buffer_ptr = wasm.set_menu(menu);
+          //   const str_len = new Uint32Array(memory.buffer, buffer_ptr, 1);
+          //   console.log('str_len: ', str_len);
+          //    const str_buf = new Uint8Array(memory.buffer, buffer_ptr + 4, str_len[0]);
+          //   console.log('str_buf: ', str_buf);
+          //
+          //    const str = new TextDecoder().decode(str_buf);
+          //    console.log('str: ', str);
+          //
+          //   const menu_container = document.getElementById("menu-container");
+          //   // replace the content of the element with the new content
+          // customSwap(menu_container, str, { swapStyle: "innerHTML" });
+          //
+          //     wasm.free(buffer_ptr, str_len[0] + 4);
       };
       
 

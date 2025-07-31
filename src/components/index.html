@@ -72,6 +72,19 @@ function print_wasm(ptr, len) {
     console.log("Printing string:", str);
 }
 
+    function wasm_custom_swap(targetElementPtr, targetElementLen, contentPtr, contentLen) {
+        console.log("wasm_custom_swap", targetElementPtr, targetElementLen, contentPtr, contentLen);
+        const targetElement = new Uint8Array(memory.buffer, targetElementPtr, targetElementLen);
+        const content = new Uint8Array(memory.buffer, contentPtr, contentLen);
+        const decoder = new TextDecoder('utf-8');
+        const str = decoder.decode(content);
+        console.log("content", str);
+        const targetElementStr = decoder.decode(targetElement);
+        console.log("targetElement", targetElementStr);
+        console.log("wasm_custom_swap", targetElement, content);
+        customSwap(targetElementStr, str, { swapStyle: "innerHTML" }); 
+    }
+
 
            const updateFunctions = {
     updateContent: function(element) {
@@ -123,6 +136,7 @@ function print_wasm(ptr, len) {
         notify_timer_change: updateTimerUI,
         send: send,
                 print_wasm: print_wasm,
+                wasm_custom_swap: wasm_custom_swap,
                 update_data: update_data,
         import_random_bytes: (bufferAddress, length) => {
                 // Get a view of the Wasm memory buffer as a Uint8Array

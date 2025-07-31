@@ -427,18 +427,59 @@ pub fn SystemType() type {
                 };
                 pub const State = struct {
                     is_has_ran: bool = false,
+                    kv_result_timers: system_kv.operations.read_range.Result,
                 };
 
-                pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State) replica.Handled_Status {
+                pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State, connection_state: *anyopaque) replica.Handled_Status {
                     _ = self;
-                    _ = rep;
                     _ = body;
                     _ = result;
-                    _ = state;
+
+                    if (state.is_has_ran) {
+                        std.debug.print("state machine back after get all timers\r\n", .{});
+                        return .done;
+                    }
 
                     std.debug.print("get all timers\r\n", .{});
 
-                    return .done;
+                    // request all the timers from the kv
+
+                    const connection_state_data: *AppState = @alignCast(@ptrCast(connection_state));
+                    std.debug.print("user is trying to add timer\r\n", .{});
+                    if (connection_state_data.user_id.* == null) {
+                        std.debug.print("user is trying to add timer no user id\r\n", .{});
+                        return .done;
+                    }
+                    const repd: *Replica = @alignCast(@ptrCast(rep));
+                    if (state.is_has_ran) {
+                        std.debug.print("state machine back after add timer\r\n", .{});
+                        return .done;
+                    }
+
+                    //                                 connection_state_data.user_id.*  to stack string
+                    var key = StackStringZig.StackString(u16, global_constants.max_key_length).init(
+                        "Timer",
+                    );
+                    key.append(&connection_state_data.user_id.*.?.bin) catch {
+                        std.debug.print("failed to append to key\r\n", .{});
+                        return .done;
+                    };
+
+                    var get_range_id = repd.call_remote(
+                        system_kv,
+                        .read_range,
+                        .{
+                            .prefix = key,
+                        },
+                        &state.kv_result_timers,
+                    ) catch {
+                        std.debug.print("failed to call kv\r\n", .{});
+                        return .done;
+                    };
+                    repd.add_wait(&get_range_id);
+                    state.is_has_ran = true;
+                    std.debug.print("added timer wait\r\n", .{});
+                    return .wait;
                 }
             };
         };

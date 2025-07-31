@@ -5,8 +5,10 @@ const StackStringZig = @import("../../stack_string.zig");
 const system_gateway = @import("../gateway/gateway.zig").system;
 const send = @import("../../wasm.zig").send;
 const uuid = @import("../../uuid.zig");
+const shared = @import("../../shared.zig");
 
 const print_wasm = @import("../../wasm.zig").print_wasm;
+const wasm_custom_swap = @import("../../wasm.zig").wasm_custom_swap;
 
 const GlobalState = struct {
     user_id: ?uuid.UUID,
@@ -78,7 +80,9 @@ pub fn SystemType() type {
         pub const Operation = enum(u8) {
             signup_client = 0,
             login_client = 1,
-            add_timer = 2,
+            get_timers = 2,
+            add_timer = 3,
+            page_home = 4,
         };
 
         pub const operations = struct {
@@ -194,6 +198,41 @@ pub fn SystemType() type {
                 }
             };
 
+            pub const get_timers = struct {
+                pub const Body = struct {};
+                pub const Result = struct {};
+                pub const State = struct {
+                    is_has_ran: bool = false,
+                    kv_result_timers: system_gateway.operations.get_all_timers.Result,
+                };
+                pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State, connection_state: *anyopaque) replica.Handled_Status {
+                    _ = connection_state;
+                    _ = self;
+                    _ = result;
+                    _ = body;
+
+                    const repd: *Replica = @alignCast(@ptrCast(rep));
+
+                    if (state.is_has_ran) {
+                        return .done;
+                    }
+
+                    var get_all_timers_id = repd.call_remote(
+                        system_gateway,
+                        .get_all_timers,
+                        .{},
+                        &state.kv_result_timers,
+                    ) catch {
+                        const temp = "failed to call kv\r\n";
+                        print_wasm(temp.ptr, temp.len);
+                        return .done;
+                    };
+                    repd.add_wait(&get_all_timers_id);
+                    state.is_has_ran = true;
+                    return .wait;
+                }
+            };
+
             pub const add_timer = struct {
                 pub const Body = struct {
                     name: StackStringZig.StackString(u8, global_constants.MAX_USERNAME_LENGTH),
@@ -228,6 +267,71 @@ pub fn SystemType() type {
                     repd.add_wait(&add_message_id);
                     state.is_has_ran = true;
                     return .wait;
+                }
+            };
+
+            pub const page_home = struct {
+                pub const Body = struct {};
+                pub const Result = struct {};
+                pub const State = struct {
+                    is_has_ran_get_timers: bool = false,
+                    timers: system.operations.get_timers.Result,
+                };
+                pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State, connection_state: *anyopaque) replica.Handled_Status {
+                    _ = connection_state;
+                    _ = result;
+                    _ = body;
+                    _ = self;
+
+                    const repd: *Replica = @alignCast(@ptrCast(rep));
+                    if (!state.is_has_ran_get_timers) {
+                        const get_timers_id = repd.call_local(
+                            .get_timers,
+                            .{},
+                            &state.timers,
+                        );
+
+                        repd.add_wait(&get_timers_id);
+                        state.is_has_ran_get_timers = true;
+                        return .wait;
+                    }
+
+                    const BufferSize = 50000;
+
+                    var buffer: [BufferSize]u8 = undefined; // fixed-size backing buffer
+                    var fba = std.heap.FixedBufferAllocator.init(buffer[0..]);
+                    const allocator = fba.allocator();
+
+                    var writer = shared.BufferWriter.init(&allocator, BufferSize) catch {
+                        return .done;
+                    };
+
+                    writer.set_lens();
+
+                    var home = @import("../../components/rz/pages/home.zig").Component{
+                        .username = global_state.username.?.to_slice() catch {
+                            return .done;
+                        },
+                        .display_name = global_state.display_name.?.to_slice() catch {
+                            return .done;
+                        },
+                    };
+                    var home_ptr = home.get_compenent();
+                    home_ptr.render(&writer) catch {
+                        return .done;
+                    };
+                    writer.set_lens();
+                    const u32_body_len: u32 = @intCast(writer.position_body - (writer.position_header + 4));
+
+                    const element_id = "#menu-container";
+                    wasm_custom_swap(
+                        element_id.ptr,
+                        element_id.len,
+                        writer.buffer.ptr[8..],
+                        u32_body_len,
+                    );
+
+                    return .done;
                 }
             };
         };

@@ -380,7 +380,7 @@ pub fn ReplicaType(
 
             if (self.resurveAvailableFiber()) |fiber_index| {
                 const temp = &self.messages[fiber_index][0];
-                const t2: *message_header.Header.Request(System) = @ptrCast(temp);
+                const t2: *message_header.Header.Request(System) = @alignCast(@ptrCast(temp));
                 t2.* = message_header.Header.Request(System){
                     .request = 0,
                     .command = .request,

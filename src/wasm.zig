@@ -24,6 +24,8 @@ pub extern fn print_wasm(ptr: [*]const u8, len: usize) void;
 
 pub extern fn update_data(ptr: [*]const u8, len: usize) void;
 
+pub extern fn wasm_custom_swap(targetElementPtr: [*]const u8, targetElementLen: u32, contentPtr: [*]const u8, contentLen: u32) void;
+
 fn handle_network_reply(message_id: uuid.UUID, buffer_ptr: [*]u8) void {
     _ = buffer_ptr;
     _ = message_id;
@@ -315,81 +317,106 @@ pub export fn updateContent() *const u8 {
     return addr;
 }
 
-pub export fn set_menu(index_left_to_right: u8) *const u8 {
-    const BufferSize = 50000;
-
-    var writer = shared.BufferWriter.init(&allocator, BufferSize) catch {
-        const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
-        return &empty[0];
-    };
-
-    writer.set_lens();
+pub export fn set_menu(index_left_to_right: u8) void {
+    // const BufferSize = 50000;
+    //
+    // var writer = shared.BufferWriter.init(&allocator, BufferSize) catch {
+    //     const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+    //     return &empty[0];
+    // };
+    //
+    // writer.set_lens();
 
     switch (index_left_to_right) {
         4 => {
-            var home = @import("components/rz/pages/home.zig").Component{
-                .username = client.global_state.username.?.to_slice() catch {
-                    const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
-                    return &empty[0];
-                },
-                .display_name = client.global_state.display_name.?.to_slice() catch {
-                    const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
-                    return &empty[0];
-                },
-            };
-            var home_ptr = home.get_compenent();
-            home_ptr.render(&writer) catch {
-                const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
-                return &empty[0];
-            };
+            if (replica.resurveAvailableFiber()) |fiber_index| {
+                const temp = &replica.messages[fiber_index][0];
+                const t2: *message_header.Header.Request(client.system) = @constCast(@alignCast(@ptrCast(temp)));
+                t2.* = message_header.Header.Request(client.system){
+                    .request = 0,
+                    .command = .request,
+                    .client = 0,
+                    .operation = .page_home,
+                    .cluster = 0,
+                    .release = 0,
+                    .message_id = uuid.UUID.v4(),
+                };
+                // const header_size = @sizeOf(message_header.Header.Request(client.system));
+                // const Body = Operations.BodyType(client.system, .login_client);
+                // var ptr_as_int = @intFromPtr(temp);
+                // ptr_as_int = ptr_as_int + header_size;
+                // const operation_struct: *Body = @ptrFromInt(ptr_as_int);
+                // operation_struct.email = email;
+                // operation_struct.password = password;
+
+                replica.message_statuses[fiber_index] = .Ready;
+                replica.push(fiber_index) catch undefined;
+            }
+
+            // var home = @import("components/rz/pages/home.zig").Component{
+            //     .username = client.global_state.username.?.to_slice() catch {
+            //         const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+            //         return &empty[0];
+            //     },
+            //     .display_name = client.global_state.display_name.?.to_slice() catch {
+            //         const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+            //         return &empty[0];
+            //     },
+            // };
+            // var home_ptr = home.get_compenent();
+            // home_ptr.render(&writer) catch {
+            //     const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+            //     return &empty[0];
+            // };
         },
-        1 => {
-            var cards = @import("components/rz/pages/cards.zig").Component{};
-            var cards_ptr = cards.get_compenent();
-            cards_ptr.render(&writer) catch {
-                const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
-                return &empty[0];
-            };
-        },
-        2 => {
-            var battle = @import("components/rz/pages/battle.zig").Component{};
-            var battle_ptr = battle.get_compenent();
-            battle_ptr.render(&writer) catch {
-                const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
-                return &empty[0];
-            };
-        },
-        3 => {
-            var clan = @import("components/rz/pages/clan.zig").Component{};
-            var clan_ptr = clan.get_compenent();
-            clan_ptr.render(&writer) catch {
-                const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
-                return &empty[0];
-            };
-        },
-        0 => {
-            var shop = @import("components/rz/pages/shop.zig").Component{};
-            var shop_ptr = shop.get_compenent();
-            shop_ptr.render(&writer) catch {
-                const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
-                return &empty[0];
-            };
-        },
-        5 => {
-            var add_timer_component = @import("components/rz/pages/add_timer.zig").Component{};
-            var add_timer_ptr = add_timer_component.get_compenent();
-            add_timer_ptr.render(&writer) catch {
-                const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
-                return &empty[0];
-            };
-        },
+        // 1 => {
+        //     var cards = @import("components/rz/pages/cards.zig").Component{};
+        //     var cards_ptr = cards.get_compenent();
+        //     cards_ptr.render(&writer) catch {
+        //         const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+        //         return &empty[0];
+        //     };
+        // },
+        // 2 => {
+        //     var battle = @import("components/rz/pages/battle.zig").Component{};
+        //     var battle_ptr = battle.get_compenent();
+        //     battle_ptr.render(&writer) catch {
+        //         const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+        //         return &empty[0];
+        //     };
+        // },
+        // 3 => {
+        //     var clan = @import("components/rz/pages/clan.zig").Component{};
+        //     var clan_ptr = clan.get_compenent();
+        //     clan_ptr.render(&writer) catch {
+        //         const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+        //         return &empty[0];
+        //     };
+        // },
+        // 0 => {
+        //     var shop = @import("components/rz/pages/shop.zig").Component{};
+        //     var shop_ptr = shop.get_compenent();
+        //     shop_ptr.render(&writer) catch {
+        //         const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+        //         return &empty[0];
+        //     };
+        // },
+        // 5 => {
+        //     var add_timer_component = @import("components/rz/pages/add_timer.zig").Component{};
+        //     var add_timer_ptr = add_timer_component.get_compenent();
+        //     add_timer_ptr.render(&writer) catch {
+        //         const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+        //         return &empty[0];
+        //     };
+        // },
         else => {
-            const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
-            return &empty[0];
+            // const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+            // return &empty[0];
+            return;
         },
     }
 
-    const addr_int: usize = @intFromPtr(writer.buffer.ptr);
-    const addr: *u8 = @ptrFromInt(addr_int + writer.position_header);
-    return addr;
+    // const addr_int: usize = @intFromPtr(writer.buffer.ptr);
+    // const addr: *u8 = @ptrFromInt(addr_int + writer.position_header);
+    // return addr;
 }
