@@ -10,6 +10,7 @@ pub const Component = struct {
     const Self = @This();
     username: []const u8,
     display_name: []const u8,
+    timers: [64]@import("../../../systems/gateway/gateway.zig").Timer,
     // timers: []*@import("../../../systems/gateway/gateway.zig").Timer,
     // timers: []*ComponentVTable,
     // active_tags: []*ComponentVTable,
@@ -41,16 +42,35 @@ pub const Component = struct {
             return error.ComponentError;
         };
 
-        var string_c = string_component.Component{
-            .content = "this is a string",
-        };
-        var string_ptr = string_c.get_compenent();
+        // var string_c = string_component.Component{
+        //     .content = "this is a string",
+        // };
+        // var string_ptr = string_c.get_compenent();
+        //
+        // var timer_c = timer.Component{ .content = &string_ptr };
+        // var timer_ptr = timer_c.get_compenent();
+        // timer_ptr.render(writer) catch {
+        //     return error.ComponentError;
+        // };
 
-        var timer_c = timer.Component{ .content = &string_ptr };
-        var timer_ptr = timer_c.get_compenent();
-        timer_ptr.render(writer) catch {
-            return error.ComponentError;
-        };
+        for (self.timers) |timer_item| {
+            if (timer_item.name._len == 0) {
+                continue;
+            }
+            var name = timer_item.name;
+            var string_c = string_component.Component{
+                .content = name.to_slice() catch {
+                    return error.ComponentError;
+                },
+            };
+            var string_ptr = string_c.get_compenent();
+
+            var timer_c = timer.Component{ .content = &string_ptr };
+            var timer_ptr = timer_c.get_compenent();
+            timer_ptr.render(writer) catch {
+                return error.ComponentError;
+            };
+        }
 
         var tag_string_c = string_component.Component{
             .content = "tag",

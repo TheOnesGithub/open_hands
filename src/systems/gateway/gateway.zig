@@ -81,6 +81,7 @@ const LoginAttempt = extern struct {
 };
 
 pub const Timer = extern struct {
+    uuid: uuid.UUID,
     name: StackStringZig.StackString(u8, global_constants.MAX_USERNAME_LENGTH),
     duration: u32,
 };
@@ -381,6 +382,8 @@ pub fn SystemType() type {
                         return .done;
                     }
 
+                    const now_timer_id = uuid.UUID.v4();
+
                     //                                 connection_state_data.user_id.*  to stack string
                     var key = StackStringZig.StackString(u16, global_constants.max_key_length).init(
                         "Timer",
@@ -389,10 +392,7 @@ pub fn SystemType() type {
                         std.debug.print("failed to append to key\r\n", .{});
                         return .done;
                     };
-                    key.append(body.name.to_slice() catch |err| {
-                        std.debug.print("failed to get from stack string: {s}\r\n", .{@errorName(err)});
-                        return .done;
-                    }) catch {
+                    key.append(&now_timer_id.bin) catch {
                         std.debug.print("failed to append to key\r\n", .{});
                         return .done;
                     };
@@ -403,6 +403,7 @@ pub fn SystemType() type {
                             // user_id + timer_name
                             .key = key,
                             .value = StackStringZig.StackString(u32, global_constants.max_value_length).init(std.mem.asBytes(&Timer{
+                                .uuid = now_timer_id,
                                 .name = body.name,
                                 .duration = body.duration,
                             })),

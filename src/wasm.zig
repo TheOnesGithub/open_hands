@@ -401,14 +401,30 @@ pub export fn set_menu(index_left_to_right: u8) void {
         //         return &empty[0];
         //     };
         // },
-        // 5 => {
-        //     var add_timer_component = @import("components/rz/pages/add_timer.zig").Component{};
-        //     var add_timer_ptr = add_timer_component.get_compenent();
-        //     add_timer_ptr.render(&writer) catch {
-        //         const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
-        //         return &empty[0];
-        //     };
-        // },
+        5 => {
+            // var add_timer_component = @import("components/rz/pages/add_timer.zig").Component{};
+            // var add_timer_ptr = add_timer_component.get_compenent();
+            // add_timer_ptr.render(&writer) catch {
+            //     const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
+            //     return &empty[0];
+            // };
+
+            if (replica.resurveAvailableFiber()) |fiber_index| {
+                const temp = &replica.messages[fiber_index][0];
+                const t2: *message_header.Header.Request(client.system) = @constCast(@alignCast(@ptrCast(temp)));
+                t2.* = message_header.Header.Request(client.system){
+                    .request = 0,
+                    .command = .request,
+                    .client = 0,
+                    .operation = .page_add_timer,
+                    .cluster = 0,
+                    .release = 0,
+                    .message_id = uuid.UUID.v4(),
+                };
+                replica.message_statuses[fiber_index] = .Ready;
+                replica.push(fiber_index) catch undefined;
+            }
+        },
         else => {
             // const empty = [8]u8{ 0, 0, 0, 0, 0, 0, 0, 0 };
             // return &empty[0];

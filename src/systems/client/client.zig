@@ -14,18 +14,29 @@ const GlobalState = struct {
     user_id: ?uuid.UUID,
     display_name: ?StackStringZig.StackString(u8, global_constants.max_display_name_length),
     username: ?StackStringZig.StackString(u8, global_constants.MAX_USERNAME_LENGTH),
+    timers: [64]@import("../gateway/gateway.zig").Timer,
 };
 
 pub var global_state: GlobalState = .{
     .user_id = null,
     .display_name = null,
     .username = null,
+    .timers = [_]@import("../gateway/gateway.zig").Timer{.{
+        .uuid = undefined,
+        .name = undefined,
+        .duration = 0,
+    }} ** 64,
 };
 
 pub var check_global_state: GlobalState = .{
     .user_id = null,
     .display_name = null,
     .username = null,
+    .timers = [_]@import("../gateway/gateway.zig").Timer{.{
+        .uuid = undefined,
+        .name = undefined,
+        .duration = 0,
+    }} ** 64,
 };
 
 pub const AppState = struct {};
@@ -83,6 +94,7 @@ pub fn SystemType() type {
             get_timers = 2,
             add_timer = 3,
             page_home = 4,
+            page_add_timer = 5,
         };
 
         pub const operations = struct {
@@ -218,6 +230,36 @@ pub fn SystemType() type {
                             &state.kv_result_timers.value._str,
                             state.kv_result_timers.value._len,
                         );
+
+                        global_state.timers[0] = .{
+                            .uuid = uuid.UUID.v4(),
+                            .name = StackStringZig.StackString(u8, global_constants.MAX_USERNAME_LENGTH).init("test oo"),
+                            .duration = 8,
+                        };
+                        // var is_done = false;
+                        // if (state.kv_result_timers.value._len == 0) {
+                        //     is_done = true;
+                        // }
+                        // var index: u32 = 0;
+                        // var entry_index: u32 = 0;
+                        // while (!is_done) {
+                        //     // get the length of the next key
+                        //     const key_len: *u32 = @constCast(@ptrCast(&state.kv_result_timers.value._str[index..4]));
+                        //     index += 4;
+                        //     const key = state.kv_result_timers.value._str[4 .. key_len.* + 4];
+                        //     index += key_len.*;
+                        //     const value_len: *u32 = @constCast(@ptrCast(&state.kv_result_timers.value._str[index .. index + 4]));
+                        //     index += 4;
+                        //     const value = state.kv_result_timers.value._str[index .. index + value_len.*];
+                        //     index += value_len.*;
+                        //
+                        //     _ = key;
+                        //
+                        //     _ = value;
+                        //     // global_state.timers[entry_index] = std.mem.bytesToValue(@import("../gateway/gateway.zig").Timer, value);
+                        //     entry_index += 1;
+                        // }
+
                         return .done;
                     }
 
@@ -319,11 +361,71 @@ pub fn SystemType() type {
                         .display_name = global_state.display_name.?.to_slice() catch {
                             return .done;
                         },
+                        .timers = global_state.timers,
                     };
                     var home_ptr = home.get_compenent();
                     home_ptr.render(&writer) catch {
                         return .done;
                     };
+                    writer.set_lens();
+                    const u32_body_len: u32 = @intCast(writer.position_body - (writer.position_header + 4));
+
+                    const element_id = "#menu-container";
+                    wasm_custom_swap(
+                        element_id.ptr,
+                        element_id.len,
+                        writer.buffer.ptr[8..],
+                        u32_body_len,
+                    );
+
+                    return .done;
+                }
+            };
+
+            pub const page_add_timer = struct {
+                pub const Body = struct {};
+                pub const Result = struct {};
+                pub const State = struct {
+                    is_has_ran_get_timers: bool = false,
+                    timers: system.operations.get_timers.Result,
+                };
+                pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State, connection_state: *anyopaque) replica.Handled_Status {
+                    _ = connection_state;
+                    _ = result;
+                    _ = body;
+                    _ = self;
+
+                    const repd: *Replica = @alignCast(@ptrCast(rep));
+                    if (!state.is_has_ran_get_timers) {
+                        const get_timers_id = repd.call_local(
+                            .get_timers,
+                            .{},
+                            &state.timers,
+                        );
+
+                        repd.add_wait(&get_timers_id);
+                        state.is_has_ran_get_timers = true;
+                        return .wait;
+                    }
+
+                    const BufferSize = 50000;
+
+                    var buffer: [BufferSize]u8 = undefined; // fixed-size backing buffer
+                    var fba = std.heap.FixedBufferAllocator.init(&buffer);
+                    const allocator = fba.allocator();
+
+                    var writer = shared.BufferWriter.init(&allocator, BufferSize) catch {
+                        return .done;
+                    };
+
+                    writer.set_lens();
+
+                    var add_timer_component = @import("../../components/rz/pages/add_timer.zig").Component{};
+                    var add_timer_ptr = add_timer_component.get_compenent();
+                    add_timer_ptr.render(&writer) catch {
+                        return .done;
+                    };
+
                     writer.set_lens();
                     const u32_body_len: u32 = @intCast(writer.position_body - (writer.position_header + 4));
 
