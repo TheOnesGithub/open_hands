@@ -214,6 +214,10 @@ pub fn SystemType() type {
                     const repd: *Replica = @alignCast(@ptrCast(rep));
 
                     if (state.is_has_ran) {
+                        print_wasm(
+                            &state.kv_result_timers.value._str,
+                            state.kv_result_timers.value._len,
+                        );
                         return .done;
                     }
 

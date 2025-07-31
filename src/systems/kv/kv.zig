@@ -148,9 +148,9 @@ pub fn SystemType(comptime SystemDataType: type) type {
             pub const read_range = struct {
                 pub const Body = extern struct {
                     prefix: StackStringZig.StackString(u16, global_constants.max_key_length),
+                    previous_key: StackStringZig.StackString(u16, global_constants.max_key_length),
                 };
                 pub const Result = extern struct {
-                    is_value_found: bool = false,
                     value: StackStringZig.StackString(u32, global_constants.max_value_length),
                 };
                 pub const State = struct {};
@@ -158,8 +158,8 @@ pub fn SystemType(comptime SystemDataType: type) type {
                     _ = connection_state;
                     _ = rep;
                     _ = state;
-                    _ = result;
                     std.debug.print("read attempt prefix: {}\r\n", .{body.*.prefix});
+                    result.*.value = StackStringZig.StackString(u32, global_constants.max_value_length).init("");
 
                     const txn = lmdb.Transaction.init(self.system_data.*, .{ .mode = .ReadOnly }) catch |err| {
                         std.debug.print("failed to init read transaction: {s}\r\n", .{@errorName(err)});
@@ -188,6 +188,23 @@ pub fn SystemType(comptime SystemDataType: type) type {
                         return .done;
                     };
 
+                    if (body.previous_key._len > 0) {
+                        const previous_key = body.previous_key.to_slice() catch |err| {
+                            std.debug.print("failed to get from stack string: {s}\r\n", .{@errorName(err)});
+                            return .done;
+                        };
+
+                        cursor.goToKey(previous_key) catch |err| {
+                            std.debug.print("failed to go to previous key: {s}\r\n", .{@errorName(err)});
+                            return .done;
+                        };
+
+                        maybe_key = cursor.goToNext() catch |err| {
+                            std.debug.print("failed to get next key/value: {s}\r\n", .{@errorName(err)});
+                            return .done;
+                        };
+                    }
+
                     while (maybe_key) |key| {
                         if (!std.mem.startsWith(u8, key, prefix)) {
                             break;
@@ -199,6 +216,25 @@ pub fn SystemType(comptime SystemDataType: type) type {
                         };
 
                         std.debug.print("read key: {any} value: {any}\r\n", .{ key, value });
+                        // add key length to the result
+                        const key_len_ptr: *const [4]u8 = @ptrCast(&key.len);
+                        result.*.value.append(key_len_ptr) catch {
+                            std.debug.print("failed to append to key\r\n", .{});
+                            return .done;
+                        };
+                        result.*.value.append(key) catch {
+                            std.debug.print("failed to append to key\r\n", .{});
+                            return .done;
+                        };
+                        const value_len_ptr: *const [4]u8 = @ptrCast(&value.len);
+                        result.*.value.append(value_len_ptr) catch {
+                            std.debug.print("failed to append to key\r\n", .{});
+                            return .done;
+                        };
+                        result.*.value.append(value) catch {
+                            std.debug.print("failed to append to value\r\n", .{});
+                            return .done;
+                        };
 
                         maybe_key = cursor.goToNext() catch |err| {
                             std.debug.print("failed to get next key/value: {s}\r\n", .{@errorName(err)});
@@ -211,6 +247,7 @@ pub fn SystemType(comptime SystemDataType: type) type {
                         return .done;
                     };
 
+                    std.debug.print("print return: {}\r\n", .{result.*.value});
                     return .done;
                 }
             };

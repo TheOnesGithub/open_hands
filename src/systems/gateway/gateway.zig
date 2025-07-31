@@ -423,7 +423,7 @@ pub fn SystemType() type {
             pub const get_all_timers = struct {
                 pub const Body = extern struct {};
                 pub const Result = extern struct {
-                    // Timers
+                    value: StackStringZig.StackString(u32, global_constants.max_value_length),
                 };
                 pub const State = struct {
                     is_has_ran: bool = false,
@@ -433,10 +433,11 @@ pub fn SystemType() type {
                 pub fn call(self: *System, rep: *anyopaque, body: *Body, result: *Result, state: *State, connection_state: *anyopaque) replica.Handled_Status {
                     _ = self;
                     _ = body;
-                    _ = result;
 
                     if (state.is_has_ran) {
                         std.debug.print("state machine back after get all timers\r\n", .{});
+                        std.debug.print("{}\r\n", .{state.kv_result_timers});
+                        result.*.value = state.kv_result_timers.value;
                         return .done;
                     }
 
@@ -470,6 +471,7 @@ pub fn SystemType() type {
                         .read_range,
                         .{
                             .prefix = key,
+                            .previous_key = StackStringZig.StackString(u16, global_constants.max_key_length).init(""),
                         },
                         &state.kv_result_timers,
                     ) catch {
