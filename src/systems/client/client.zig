@@ -236,29 +236,41 @@ pub fn SystemType() type {
                             .name = StackStringZig.StackString(u8, global_constants.MAX_USERNAME_LENGTH).init("test oo"),
                             .duration = 8,
                         };
-                        // var is_done = false;
-                        // if (state.kv_result_timers.value._len == 0) {
-                        //     is_done = true;
-                        // }
-                        // var index: u32 = 0;
-                        // var entry_index: u32 = 0;
-                        // while (!is_done) {
-                        //     // get the length of the next key
-                        //     const key_len: *u32 = @constCast(@ptrCast(&state.kv_result_timers.value._str[index..4]));
-                        //     index += 4;
-                        //     const key = state.kv_result_timers.value._str[4 .. key_len.* + 4];
-                        //     index += key_len.*;
-                        //     const value_len: *u32 = @constCast(@ptrCast(&state.kv_result_timers.value._str[index .. index + 4]));
-                        //     index += 4;
-                        //     const value = state.kv_result_timers.value._str[index .. index + value_len.*];
-                        //     index += value_len.*;
-                        //
-                        //     _ = key;
-                        //
-                        //     _ = value;
-                        //     // global_state.timers[entry_index] = std.mem.bytesToValue(@import("../gateway/gateway.zig").Timer, value);
-                        //     entry_index += 1;
-                        // }
+
+                        const buffer = state.kv_result_timers.value.to_slice() catch {
+                            return .done;
+                        };
+
+                        var index: u32 = 0;
+                        var entry_index: u32 = 0;
+                        while (index + 4 <= buffer.len) {
+                            const key_len_buffer: *const [4]u8 = @ptrCast(&buffer[index]);
+                            const key_len = std.mem.readInt(u32, key_len_buffer, .little);
+                            index += 4;
+                            if (index + key_len > buffer.len) {
+                                break;
+                            }
+                            const key = buffer[index .. index + key_len];
+                            index += key_len;
+                            if (index + 4 > buffer.len) {
+                                break;
+                            }
+
+                            const value_len_buffer: *const [4]u8 = @ptrCast(&buffer[index]);
+                            const value_len = std.mem.readInt(u32, value_len_buffer, .little);
+                            index += 4;
+                            if (index + value_len > buffer.len) {
+                                break;
+                            }
+
+                            const value = buffer[index .. index + value_len];
+                            index += value_len;
+
+                            _ = key;
+                            global_state.timers[entry_index] = std.mem.bytesToValue(@import("../gateway/gateway.zig").Timer, value);
+
+                            entry_index += 1;
+                        }
 
                         return .done;
                     }
