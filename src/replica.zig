@@ -279,10 +279,8 @@ pub fn ReplicaType(
                                         self.temp_return(self.app_state_data[idx], buffer[0..header_reply.size]);
                                         if (comptime !builtin.cpu.arch.isWasm()) {
                                             std.debug.print("message status is available\r\n", .{});
-                                            // this needs to wait for httpz to send the message
-                                            self.message_statuses[self.current_message] = .Available;
-                                            // need to zoro the message
                                         }
+                                        self.message_statuses[self.current_message] = .Available;
                                         // const ptr: [*]const u8 = @ptrCast(&buffer[0]);
                                         // self.temp_return(h_request.message_id, ptr[0..header_reply.size]);
                                     }
