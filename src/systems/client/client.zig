@@ -231,11 +231,11 @@ pub fn SystemType() type {
                             state.kv_result_timers.value._len,
                         );
 
-                        global_state.timers[0] = .{
-                            .uuid = uuid.UUID.v4(),
-                            .name = StackStringZig.StackString(u8, global_constants.MAX_USERNAME_LENGTH).init("test oo"),
-                            .duration = 8,
-                        };
+                        // global_state.timers[0] = .{
+                        //     .uuid = uuid.UUID.v4(),
+                        //     .name = StackStringZig.StackString(u8, global_constants.MAX_USERNAME_LENGTH).init("test oo"),
+                        //     .duration = 8,
+                        // };
 
                         const buffer = state.kv_result_timers.value.to_slice() catch {
                             return .done;

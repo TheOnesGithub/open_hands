@@ -12,11 +12,11 @@ const AppState = @import("systems/kv/kv.zig").AppState;
 const lmdb = @import("lmdb");
 
 const AutoHashMap = std.AutoHashMap;
-const FixedBufferAllocator = std.heap.FixedBufferAllocator;
+// const FixedBufferAllocator = std.heap.FixedBufferAllocator;
 
 var message_id_buffer: [global_constants.message_wait_on_map_buffer_size]u8 = undefined;
 // var message_id_map: AutoHashMap(uuid.UUID, Message_Request_Value) = undefined;
-var fba: std.heap.FixedBufferAllocator = undefined;
+// var fba: std.heap.FixedBufferAllocator = undefined;
 const IO = @import("io.zig");
 
 // pub const Message_Request_Value = struct {
@@ -96,8 +96,9 @@ pub fn start() !void {
     };
     std.debug.print("past spawn\r\n", .{});
 
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator_check = gpa.allocator();
+    // var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    // const allocator_check = gpa.allocator();
+    const allocator_check = std.heap.page_allocator;
 
     var server = httpz.Server(*App).init(allocator_check, .{
         .port = 9224,
@@ -190,11 +191,14 @@ const Client = struct {
             self.app.replica.message_statuses[fiber_index] = .Ready;
             try self.app.replica.push(fiber_index);
             std.debug.print("ran push \r\n", .{});
+        } else {
+            std.debug.print("no fiber available\r\n", .{});
         }
     }
 };
 
 fn temp_return(app_state: AppState, message: []align(16) u8) void {
+    std.debug.print("temp return\r\n", .{});
     app_state.conn.writeBin(message) catch {
         std.debug.assert(false);
     };

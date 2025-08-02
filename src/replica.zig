@@ -79,6 +79,18 @@ pub fn ReplicaType(
             temp_return: *const fn (AppState, []align(16) u8) void,
         };
 
+        pub fn zoro_message_buffers(self: *Replica, index: usize) void {
+            // self.app_state_data[index] = AppState{
+            //     .client_message_id = undefined,
+            //     .conn = undefined,
+            //     .only_return_body = false,
+            //     .user_id = undefined,
+            // };
+            self.messages[index] = [_]u8{0} ** message_size_max;
+            // self.message_ids[index] = undefined;
+            self.messages_state[index] = [_]u8{0} ** message_size_max;
+        }
+
         pub fn push(self: *Replica, value: u32) !void {
             if (self.top < message_number_max) {
                 self.message_indexs[self.top] = value;
@@ -91,6 +103,7 @@ pub fn ReplicaType(
         pub fn findAvailableFiber(self: *Replica) ?u32 {
             for (self.message_statuses, 0..) |status, index| {
                 if (status == .Available) {
+                    zoro_message_buffers(self, index);
                     return @intCast(index);
                 }
             }
@@ -264,6 +277,12 @@ pub fn ReplicaType(
                                             std.debug.print("remote return message id: {}\r\n", .{h_request.message_id});
                                         }
                                         self.temp_return(self.app_state_data[idx], buffer[0..header_reply.size]);
+                                        if (comptime !builtin.cpu.arch.isWasm()) {
+                                            std.debug.print("message status is available\r\n", .{});
+                                            // this needs to wait for httpz to send the message
+                                            self.message_statuses[self.current_message] = .Available;
+                                            // need to zoro the message
+                                        }
                                         // const ptr: [*]const u8 = @ptrCast(&buffer[0]);
                                         // self.temp_return(h_request.message_id, ptr[0..header_reply.size]);
                                     }

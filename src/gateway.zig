@@ -96,8 +96,9 @@ pub fn call_kv(ptr: [*]const u8, len: usize) void {
 
 pub fn startKVServerClient(passed_client_db: *websocket.Client, replica: *Replica) !void {
     client_db = passed_client_db;
-    var gpa_db = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator_db = gpa_db.allocator();
+    // var gpa_db = std.heap.GeneralPurposeAllocator(.{}){};
+    // const allocator_db = gpa_db.allocator();
+    const allocator_db = std.heap.page_allocator;
 
     // create the client
     client_db.* = try websocket.Client.init(allocator_db, .{
@@ -209,8 +210,9 @@ pub fn start() !void {
         return err;
     };
 
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator_check = gpa.allocator();
+    // var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    // const allocator_check = gpa.allocator();
+    const allocator_check = std.heap.page_allocator;
 
     var server = httpz.Server(*App).init(allocator_check, .{
         .port = 8801,
